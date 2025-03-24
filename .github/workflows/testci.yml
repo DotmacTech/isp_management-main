@@ -1,17 +1,6 @@
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -19,7 +8,10 @@ jobs:
       - name: Set Up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: "3.10"
+
+      - name: Debug File Structure
+        run: ls -R
 
       - name: Install Dependencies
         run: |
@@ -28,7 +20,10 @@ jobs:
             pip install -r requirements.txt
           else
             echo "⚠️ requirements.txt not found! Installing required packages manually."
-            pip install pytest fastapi uvicorn httpx
+            pip install --no-cache-dir pytest fastapi uvicorn httpx
+
+      - name: Verify Installed Packages
+        run: pip list
 
       - name: Run Tests
         run: pytest isp_management-main/tests/mock_dependencies.py
