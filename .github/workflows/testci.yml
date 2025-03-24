@@ -32,5 +32,10 @@ jobs:
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV  # Ensure correct module imports
 
+      - name: Run linters
+        run: |
+          black .  # Auto-format before checking
+          black --check .  # Verify formatting
+
       - name: Run Tests
         run: pytest isp_management-main/tests/mock_dependencies.py --maxfail=3 --disable-warnings
