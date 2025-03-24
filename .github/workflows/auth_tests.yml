@@ -1,0 +1,96 @@
+name: Authentication Module Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backend_core/auth_service.py'
+      - 'backend_core/models.py'
+      - 'backend_core/models/user_session.py'
+      - 'backend_core/rbac.py'
+      - 'modules/auth/**'
+      - 'tests/auth/**'
+      - 'tests/modules/auth/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend_core/auth_service.py'
+      - 'backend_core/models.py'
+      - 'backend_core/models/user_session.py'
+      - 'backend_core/rbac.py'
+      - 'modules/auth/**'
+      - 'tests/auth/**'
+      - 'tests/modules/auth/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: isp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+    
+    - name: Run authentication tests
+      run: |
+        pytest tests/auth/ tests/modules/auth/ -v
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/isp_test
+        REDIS_URL: redis://localhost:6379/0
+        JWT_SECRET_KEY: test_secret_key
+        JWT_ALGORITHM: HS256
+        JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+        JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+        ENVIRONMENT: test
+    
+    - name: Run authentication tests with coverage
+      run: |
+        pytest tests/auth/ tests/modules/auth/ --cov=backend_core.auth_service --cov=modules.auth --cov-report=xml
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/isp_test
+        REDIS_URL: redis://localhost:6379/0
+        JWT_SECRET_KEY: test_secret_key
+        JWT_ALGORITHM: HS256
+        JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+        JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+        ENVIRONMENT: test
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
+        flags: authentication
+        fail_ci_if_error: true

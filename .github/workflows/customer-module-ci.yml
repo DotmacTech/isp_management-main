@@ -1,0 +1,150 @@
+name: Customer Management Module CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'modules/customer/**'
+      - 'tests/modules/customer/**'
+      - '.github/workflows/customer-module-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'modules/customer/**'
+      - 'tests/modules/customer/**'
+      - '.github/workflows/customer-module-ci.yml'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+    
+    - name: Create test environment variables
+      run: |
+        echo "DB_HOST=localhost" >> $GITHUB_ENV
+        echo "DB_PORT=5432" >> $GITHUB_ENV
+        echo "DB_USER=test_user" >> $GITHUB_ENV
+        echo "DB_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "DB_NAME=test_db" >> $GITHUB_ENV
+        echo "REDIS_HOST=localhost" >> $GITHUB_ENV
+        echo "REDIS_PORT=6379" >> $GITHUB_ENV
+        echo "CUSTOMER_DOCUMENT_PATH=/tmp/customer_documents" >> $GITHUB_ENV
+        echo "JWT_SECRET_KEY=test_secret_key" >> $GITHUB_ENV
+        echo "JWT_ALGORITHM=HS256" >> $GITHUB_ENV
+    
+    - name: Run tests
+      run: |
+        mkdir -p /tmp/customer_documents
+        pytest tests/modules/customer/ -v --cov=modules/customer --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
+        flags: customer-module
+        fail_ci_if_error: true
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort
+    
+    - name: Run linters
+      run: |
+        flake8 modules/customer/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check modules/customer/
+        isort --check-only --profile black modules/customer/
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [test, lint]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v1
+    
+    - name: Configure Kubernetes - Staging
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+      id: setcontext-staging
+    
+    - name: Deploy to staging
+      run: |
+        kubectl apply -f kubernetes/staging/customer-module.yaml
+        kubectl rollout restart deployment/isp-management-api -n isp-management-staging
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [test, lint]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v1
+    
+    - name: Configure Kubernetes - Production
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
+      id: setcontext-production
+    
+    - name: Deploy to production
+      run: |
+        kubectl apply -f kubernetes/production/customer-module.yaml
+        kubectl rollout restart deployment/isp-management-api -n isp-management-production
