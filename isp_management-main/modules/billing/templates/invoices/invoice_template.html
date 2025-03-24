@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice #{{ invoice.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+        }
+        .company-details {
+            text-align: right;
+        }
+        .invoice-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .invoice-details {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .customer-details {
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .total-row {
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+        }
+        .payment-info {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-header">
+        <div class="logo">
+            <img src="{{ company_logo_url }}" alt="Company Logo" height="80">
+        </div>
+        <div class="company-details">
+            <h2>{{ company_name }}</h2>
+            <p>{{ company_address|nl2br }}</p>
+            <p>{{ company_email }}</p>
+            <p>{{ company_phone }}</p>
+        </div>
+    </div>
+
+    <div class="invoice-title">INVOICE</div>
+    
+    <div class="invoice-details">
+        <p><strong>Invoice Number:</strong> #{{ invoice.id }}</p>
+        <p><strong>Date Issued:</strong> {{ invoice.created_at|date }}</p>
+        <p><strong>Due Date:</strong> {{ invoice.due_date|date }}</p>
+        <p><strong>Status:</strong> <span style="color: {% if invoice.status == 'paid' %}green{% elif invoice.status == 'overdue' %}red{% else %}orange{% endif %};">{{ invoice.status|upper }}</span></p>
+    </div>
+
+    <div class="customer-details">
+        <h3>Bill To:</h3>
+        <p><strong>{{ customer.full_name }}</strong></p>
+        <p>{{ customer.email }}</p>
+        <p>{{ customer.address|nl2br }}</p>
+        <p>Account: #{{ customer.id }}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Period</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice_items %}
+            <tr>
+                <td>{{ item.description }}</td>
+                <td>{{ item.period_start|date }} to {{ item.period_end|date }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>${{ item.unit_price|format_currency }}</td>
+                <td>${{ item.amount|format_currency }}</td>
+            </tr>
+            {% endfor %}
+            
+            {% if discounts %}
+            <tr>
+                <td colspan="4" style="text-align: right;"><strong>Subtotal:</strong></td>
+                <td>${{ invoice.subtotal|format_currency }}</td>
+            </tr>
+            {% for discount in discounts %}
+            <tr>
+                <td colspan="4" style="text-align: right;">Discount: {{ discount.name }}</td>
+                <td>-${{ discount.amount|format_currency }}</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            
+            {% if taxes %}
+            {% for tax in taxes %}
+            <tr>
+                <td colspan="4" style="text-align: right;">{{ tax.name }} ({{ tax.rate }}%)</td>
+                <td>${{ tax.amount|format_currency }}</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            
+            <tr class="total-row">
+                <td colspan="4" style="text-align: right;">Total:</td>
+                <td>${{ invoice.amount|format_currency }}</td>
+            </tr>
+            
+            {% if payments %}
+            {% for payment in payments %}
+            <tr>
+                <td colspan="4" style="text-align: right;">Payment ({{ payment.created_at|date }}):</td>
+                <td>-${{ payment.amount|format_currency }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+                <td colspan="4" style="text-align: right;">Balance Due:</td>
+                <td>${{ invoice.balance_due|format_currency }}</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <div class="payment-info">
+        <h3>Payment Information</h3>
+        <p><strong>Payment Methods:</strong> {{ payment_methods|join(', ') }}</p>
+        <p><strong>Account Number:</strong> {{ payment_account_number }}</p>
+        <p><strong>Payment Terms:</strong> {{ payment_terms }}</p>
+    </div>
+
+    <div class="footer">
+        <p>Thank you for your business!</p>
+        <p>{{ company_name }} | {{ company_website }}</p>
+        <p>This invoice was generated automatically. Please contact billing@example.com for any questions.</p>
+    </div>
+</body>
+</html>

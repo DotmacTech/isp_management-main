@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ISP Management Platform</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #0056b3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .content {
+            padding: 20px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+        .button {
+            display: inline-block;
+            background-color: #0056b3;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        h1 {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Welcome to ISP Management Platform</h1>
+    </div>
+    <div class="content">
+        <p>Hello {{ username }},</p>
+        
+        <p>Welcome to the ISP Management Platform! We're excited to have you on board.</p>
+        
+        <p>Your account has been successfully created and is now ready to use. With your new account, you can:</p>
+        
+        <ul>
+            <li>Manage your internet service subscriptions</li>
+            <li>View and pay invoices</li>
+            <li>Monitor your usage statistics</li>
+            <li>Contact customer support</li>
+            <li>And much more!</li>
+        </ul>
+        
+        <p>To get started, simply click the button below to log in to your account:</p>
+        
+        <p style="text-align: center;">
+            <a href="{{ login_url }}" class="button">Log In to Your Account</a>
+        </p>
+        
+        <p>If you have any questions or need assistance, please don't hesitate to contact our support team at <a href="mailto:support@example.com">support@example.com</a>.</p>
+        
+        <p>Thank you for choosing our services!</p>
+        
+        <p>Best regards,<br>
+        The ISP Management Team</p>
+    </div>
+    <div class="footer">
+        <p>This email was sent to {{ email }}. If you did not create an account with us, please ignore this email.</p>
+        <p>&copy; {{ current_year }} ISP Management Platform. All rights reserved.</p>
+    </div>
+</body>
+</html>

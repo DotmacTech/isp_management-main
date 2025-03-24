@@ -1,0 +1,208 @@
+{
+  "rules": [
+    {
+      "name": "High CPU Usage Alert",
+      "tags": ["system", "cpu", "performance"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "5m"
+      },
+      "params": {
+        "aggType": "avg",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 5,
+        "timeWindowUnit": "m",
+        "groupBy": "host_name",
+        "threshold": [80],
+        "index": "isp-metrics-*",
+        "timeField": "timestamp",
+        "aggField": "value",
+        "filterQuery": "metric_type:CPU_USAGE"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "High CPU Usage Alert for {{host_name}}",
+            "message": "High CPU usage detected for host {{host_name}}. Current value: {{value}}%"
+          }
+        }
+      ]
+    },
+    {
+      "name": "High Memory Usage Alert",
+      "tags": ["system", "memory", "performance"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "5m"
+      },
+      "params": {
+        "aggType": "avg",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 5,
+        "timeWindowUnit": "m",
+        "groupBy": "host_name",
+        "threshold": [85],
+        "index": "isp-metrics-*",
+        "timeField": "timestamp",
+        "aggField": "value",
+        "filterQuery": "metric_type:MEMORY_USAGE"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "High Memory Usage Alert for {{host_name}}",
+            "message": "High memory usage detected for host {{host_name}}. Current value: {{value}}%"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service Unavailable Alert",
+      "tags": ["service", "availability", "critical"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "1m"
+      },
+      "params": {
+        "aggType": "count",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 5,
+        "timeWindowUnit": "m",
+        "groupBy": "service_name",
+        "threshold": [0],
+        "index": "isp-logs-*",
+        "timeField": "timestamp",
+        "filterQuery": "log_level:ERROR AND message:*service unavailable*"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "Service Unavailable Alert for {{service_name}}",
+            "message": "Service {{service_name}} is reporting as unavailable. Please check immediately."
+          }
+        },
+        {
+          "id": "slack-action",
+          "group": "threshold met",
+          "params": {
+            "message": "CRITICAL ALERT: Service {{service_name}} is reporting as unavailable. Please check immediately."
+          }
+        }
+      ]
+    },
+    {
+      "name": "High Error Rate Alert",
+      "tags": ["logs", "errors", "application"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "5m"
+      },
+      "params": {
+        "aggType": "count",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 5,
+        "timeWindowUnit": "m",
+        "groupBy": "service_name",
+        "threshold": [10],
+        "index": "isp-logs-*",
+        "timeField": "timestamp",
+        "filterQuery": "log_level:ERROR"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "High Error Rate Alert for {{service_name}}",
+            "message": "Service {{service_name}} is experiencing a high rate of errors. Current count: {{value}} in the last 5 minutes."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Disk Space Critical Alert",
+      "tags": ["system", "disk", "critical"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "15m"
+      },
+      "params": {
+        "aggType": "avg",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 15,
+        "timeWindowUnit": "m",
+        "groupBy": "host_name",
+        "threshold": [90],
+        "index": "isp-metrics-*",
+        "timeField": "timestamp",
+        "aggField": "value",
+        "filterQuery": "metric_type:DISK_USAGE"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "CRITICAL: Disk Space Alert for {{host_name}}",
+            "message": "Disk usage for host {{host_name}} is critically high at {{value}}%. Immediate action required."
+          }
+        },
+        {
+          "id": "slack-action",
+          "group": "threshold met",
+          "params": {
+            "message": "CRITICAL ALERT: Disk usage for host {{host_name}} is at {{value}}%. Immediate action required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Network Traffic Spike Alert",
+      "tags": ["network", "traffic", "performance"],
+      "consumer": "alerts",
+      "schedule": {
+        "interval": "5m"
+      },
+      "params": {
+        "aggType": "avg",
+        "termSize": 5,
+        "thresholdComparator": ">",
+        "timeWindowSize": 5,
+        "timeWindowUnit": "m",
+        "groupBy": "host_name",
+        "threshold": [90],
+        "index": "isp-metrics-*",
+        "timeField": "timestamp",
+        "aggField": "value",
+        "filterQuery": "metric_type:NETWORK_TRAFFIC"
+      },
+      "actions": [
+        {
+          "id": "email-action",
+          "group": "threshold met",
+          "params": {
+            "to": ["alerts@ispmanagement.com"],
+            "subject": "Network Traffic Spike for {{host_name}}",
+            "message": "Abnormal network traffic detected for host {{host_name}}. Current utilization: {{value}}%"
+          }
+        }
+      ]
+    }
+  ]
+}

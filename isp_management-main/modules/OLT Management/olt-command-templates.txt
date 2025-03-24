@@ -1,0 +1,255 @@
+"""
+Command Templates Module
+
+This module provides templated commands for different OLT vendor models,
+allowing dynamic command generation with proper syntax for each vendor.
+"""
+
+from typing import Dict, Any, List, Optional
+
+class HuaweiCommandTemplates:
+    """Command templates for Huawei OLT devices."""
+    
+    # Template sets for different Huawei OLT models
+    TEMPLATES = {
+        # MA5800 series commands
+        "MA5800": {
+            # System commands
+            "show_version": "display version",
+            "show_system_info": "display system-info",
+            
+            # ONT management commands
+            "show_ont_info": "display ont info {frame} {slot}",
+            "show_ont_detail": "display ont info {frame} {slot} {ont_id}",
+            "show_ont_version": "display ont version {frame} {slot} {ont_id}",
+            "show_ont_status": "display ont state {frame} {slot} {ont_id}",
+            "show_ont_optical": "display ont optical-info {frame} {slot} {ont_id}",
+            "show_ont_wan_info": "display ont wan-info {frame} {slot} {ont_id}",
+            "show_ont_port_status": "display ont port state {frame} {slot} {ont_id} eth {port_id}",
+            "show_ont_capability": "display ont capability {frame} {slot} {ont_id}",
+            "show_ont_traffic": "display ont traffic {frame} {slot} {ont_id}",
+            "show_ont_alarm": "display ont alarm {frame} {slot} {ont_id}",
+            
+            # ONT provisioning commands
+            "add_ont": "ont add {frame} {slot} sn-auth {serial_number} {desc_param}",
+            "delete_ont": "ont delete {frame} {slot} {ont_id}",
+            "reset_ont": "ont reset {frame} {slot} {ont_id}",
+            "reboot_ont": "ont reboot {frame} {slot} {ont_id}",
+            
+            # ONT configuration commands
+            "config_ont_port": "ont port {status} {frame} {slot} {ont_id} {port_id}",
+            "config_ont_vlan": "ont port vlan {frame} {slot} {ont_id} {port_id} mode {vlan_mode} {vlan_param}",
+            "config_ont_native_vlan": "ont port vlan {frame} {slot} {ont_id} {port_id} native-vlan {vlan_id}",
+            "config_ont_service": "ont service {service_type} {frame} {slot} {ont_id} {status}",
+            "config_ont_tr069": "ont tr069-config {frame} {slot} {ont_id} {param_name} {param_value}",
+            "config_ont_tr069_enable": "ont tr069-config {frame} {slot} {ont_id} enable",
+            "config_ont_tr069_disable": "ont tr069-config {frame} {slot} {ont_id} disable",
+            
+            # Speed limiting commands
+            "config_ont_speed_limit": "ont traffic-profile {frame} {slot} {ont_id} profile-id {profile_id}",
+            "config_traffic_profile": "traffic table ip index {profile_id} cir {cir} pir {pir} priority {priority}",
+        },
+        
+        # MA5600T series commands
+        "MA5600T": {
+            # System commands
+            "show_version": "display version",
+            "show_system_info": "display system-info",
+            
+            # ONT management commands - notice slightly different syntax
+            "show_ont_info": "display ont info {frame}/{slot}",
+            "show_ont_detail": "display ont info {frame}/{slot} {ont_id}",
+            "show_ont_version": "display version-info {frame}/{slot} ont {ont_id}",
+            "show_ont_status": "display ont-state {frame}/{slot} {ont_id}",
+            "show_ont_optical": "display ont-optical-info {frame}/{slot} {ont_id}",
+            "show_ont_wan_info": "display ont-wan-info {frame}/{slot} {ont_id}",
+            "show_ont_port_status": "display port state {frame}/{slot} ont {ont_id} eth {port_id}",
+            "show_ont_capability": "display ont-capability {frame}/{slot} {ont_id}",
+            "show_ont_traffic": "display traffic {frame}/{slot} ont {ont_id}",
+            "show_ont_alarm": "display ont-alarm {frame}/{slot} {ont_id}",
+            
+            # ONT provisioning commands
+            "add_ont": "ont add {frame}/{slot} {ont_id} sn-auth {serial_number} {desc_param}",
+            "delete_ont": "ont delete {frame}/{slot} {ont_id}",
+            "reset_ont": "ont reset {frame}/{slot} {ont_id}",
+            "reboot_ont": "ont restart {frame}/{slot} {ont_id}",
+            
+            # ONT configuration commands
+            "config_ont_port": "port {status} {frame}/{slot} ont {ont_id} eth {port_id}",
+            "config_ont_vlan": "ont port vlan {frame}/{slot} {ont_id} eth {port_id} {vlan_mode} {vlan_param}",
+            "config_ont_native_vlan": "ont port native-vlan {frame}/{slot} {ont_id} eth {port_id} vlan {vlan_id}",
+            "config_ont_service": "service-port {service_type} {frame}/{slot} ont {ont_id} {status}",
+            "config_ont_tr069": "ont tr069-management {frame}/{slot} {ont_id} {param_name} {param_value}",
+            "config_ont_tr069_enable": "ont tr069-management {frame}/{slot} {ont_id} enable",
+            "config_ont_tr069_disable": "ont tr069-management {frame}/{slot} {ont_id} disable",
+            
+            # Speed limiting commands
+            "config_ont_speed_limit": "ont traffic-profile {frame}/{slot} {ont_id} up {up_profile} down {down_profile}",
+            "config_traffic_profile": "traffic table ip index {profile_id} cir {cir} pir {pir} priority {priority}",
+        }
+    }
+    
+    @classmethod
+    def get_command(cls, model: str, command: str, **kwargs) -> str:
+        """
+        Get a formatted command for the specified model.
+        
+        Args:
+            model: OLT model (e.g., 'MA5800', 'MA5600T')
+            command: Command template name
+            **kwargs: Parameters to format into the command template
+            
+        Returns:
+            str: Formatted command
+            
+        Raises:
+            KeyError: If the model or command isn't found
+        """
+        # Default to MA5800 if model not specified or not found
+        model_templates = cls.TEMPLATES.get(model, cls.TEMPLATES["MA5800"])
+        
+        # Get the command template
+        template = model_templates.get(command)
+        if not template:
+            raise KeyError(f"Command '{command}' not found for model '{model}'")
+        
+        # Process special parameters
+        if 'desc_param' in kwargs and kwargs['desc_param']:
+            kwargs['desc_param'] = f"description \"{kwargs['desc_param']}\""
+        else:
+            kwargs['desc_param'] = ""
+            
+        if 'vlan_param' in kwargs and kwargs.get('vlan_mode') == 'access' and kwargs.get('vlan_id'):
+            kwargs['vlan_param'] = f"vlan {kwargs['vlan_id']}"
+        else:
+            kwargs['vlan_param'] = ""
+            
+        # Format the command with the provided parameters
+        try:
+            return template.format(**kwargs)
+        except KeyError as e:
+            raise KeyError(f"Missing parameter '{e}' for command '{command}'")
+
+
+class ZTECommandTemplates:
+    """Command templates for ZTE OLT devices."""
+    
+    # Template sets for different ZTE OLT models
+    TEMPLATES = {
+        # C320 series commands
+        "C320": {
+            # System commands
+            "show_version": "show version",
+            "show_system_info": "show system",
+            
+            # ONT management commands
+            "show_ont_info": "show pon_onu all {gpon_index}",
+            "show_ont_detail": "show pon_onu detail {gpon_index} {ont_id}",
+            "show_ont_version": "show pon_onu version {gpon_index} {ont_id}",
+            "show_ont_status": "show pon_onu status {gpon_index} {ont_id}",
+            "show_ont_optical": "show pon_onu optical_info {gpon_index} {ont_id}",
+            "show_ont_wan_info": "show pon_onu wan_info {gpon_index} {ont_id}",
+            "show_ont_port_status": "show pon_onu eth_port {gpon_index} {ont_id} {port_id}",
+            "show_ont_capability": "show pon_onu capability {gpon_index} {ont_id}",
+            "show_ont_traffic": "show pon_onu traffic {gpon_index} {ont_id}",
+            "show_ont_alarm": "show pon_onu alarm {gpon_index} {ont_id}",
+            
+            # ONT provisioning commands
+            "add_ont": "create pon_onu {gpon_index} sn {serial_number} {desc_param}",
+            "delete_ont": "delete pon_onu {gpon_index} {ont_id}",
+            "reset_ont": "reset pon_onu {gpon_index} {ont_id}",
+            "reboot_ont": "reboot pon_onu {gpon_index} {ont_id}",
+            
+            # ONT configuration commands
+            "config_ont_port": "set pon_onu eth_port {status} {gpon_index} {ont_id} {port_id}",
+            "config_ont_vlan": "set pon_onu eth_port vlan {gpon_index} {ont_id} {port_id} mode {vlan_mode} {vlan_param}",
+            "config_ont_native_vlan": "set pon_onu eth_port vlan {gpon_index} {ont_id} {port_id} native {vlan_id}",
+            "config_ont_service": "set pon_onu service {gpon_index} {ont_id} {service_type} {status}",
+            "config_ont_tr069": "set pon_onu tr069 {gpon_index} {ont_id} {param_name} {param_value}",
+            "config_ont_tr069_enable": "set pon_onu tr069 {gpon_index} {ont_id} enable",
+            "config_ont_tr069_disable": "set pon_onu tr069 {gpon_index} {ont_id} disable",
+            
+            # Speed limiting commands
+            "config_ont_speed_limit": "set pon_onu traffic {gpon_index} {ont_id} profile {profile_id}",
+            "config_traffic_profile": "create traffic_profile {profile_id} cir {cir} pir {pir} priority {priority}",
+        },
+        
+        # C600 series commands
+        "C600": {
+            # System commands
+            "show_version": "show version",
+            "show_system_info": "show system",
+            
+            # ONT management commands
+            "show_ont_info": "show gpon onu all {slot}/{port}",
+            "show_ont_detail": "show gpon onu detail {slot}/{port} {ont_id}",
+            "show_ont_version": "show gpon onu version {slot}/{port} {ont_id}",
+            "show_ont_status": "show gpon onu status {slot}/{port} {ont_id}",
+            "show_ont_optical": "show gpon onu optical_info {slot}/{port} {ont_id}",
+            "show_ont_wan_info": "show gpon onu wan_info {slot}/{port} {ont_id}",
+            "show_ont_port_status": "show gpon onu eth_port {slot}/{port} {ont_id} {port_id}",
+            "show_ont_capability": "show gpon onu capability {slot}/{port} {ont_id}",
+            "show_ont_traffic": "show gpon onu traffic {slot}/{port} {ont_id}",
+            "show_ont_alarm": "show gpon onu alarm {slot}/{port} {ont_id}",
+            
+            # ONT provisioning commands
+            "add_ont": "create gpon onu {slot}/{port} sn {serial_number} {desc_param}",
+            "delete_ont": "delete gpon onu {slot}/{port} {ont_id}",
+            "reset_ont": "reset gpon onu {slot}/{port} {ont_id}",
+            "reboot_ont": "reboot gpon onu {slot}/{port} {ont_id}",
+            
+            # ONT configuration commands
+            "config_ont_port": "set gpon onu eth_port {status} {slot}/{port} {ont_id} {port_id}",
+            "config_ont_vlan": "set gpon onu eth_port vlan {slot}/{port} {ont_id} {port_id} mode {vlan_mode} {vlan_param}",
+            "config_ont_native_vlan": "set gpon onu eth_port vlan {slot}/{port} {ont_id} {port_id} native {vlan_id}",
+            "config_ont_service": "set gpon onu service {slot}/{port} {ont_id} {service_type} {status}",
+            "config_ont_tr069": "set gpon onu tr069 {slot}/{port} {ont_id} {param_name} {param_value}",
+            "config_ont_tr069_enable": "set gpon onu tr069 {slot}/{port} {ont_id} enable",
+            "config_ont_tr069_disable": "set gpon onu tr069 {slot}/{port} {ont_id} disable",
+            
+            # Speed limiting commands
+            "config_ont_speed_limit": "set gpon onu traffic {slot}/{port} {ont_id} profile {profile_id}",
+            "config_traffic_profile": "create traffic_profile {profile_id} cir {cir} pir {pir} priority {priority}",
+        }
+    }
+    
+    @classmethod
+    def get_command(cls, model: str, command: str, **kwargs) -> str:
+        """
+        Get a formatted command for the specified model.
+        
+        Args:
+            model: OLT model (e.g., 'C320', 'C600')
+            command: Command template name
+            **kwargs: Parameters to format into the command template
+            
+        Returns:
+            str: Formatted command
+            
+        Raises:
+            KeyError: If the model or command isn't found
+        """
+        # Default to C320 if model not specified or not found
+        model_templates = cls.TEMPLATES.get(model, cls.TEMPLATES["C320"])
+        
+        # Get the command template
+        template = model_templates.get(command)
+        if not template:
+            raise KeyError(f"Command '{command}' not found for model '{model}'")
+        
+        # Process special parameters
+        if 'desc_param' in kwargs and kwargs['desc_param']:
+            kwargs['desc_param'] = f"description \"{kwargs['desc_param']}\""
+        else:
+            kwargs['desc_param'] = ""
+            
+        if 'vlan_param' in kwargs and kwargs.get('vlan_mode') == 'access' and kwargs.get('vlan_id'):
+            kwargs['vlan_param'] = f"vlan {kwargs['vlan_id']}"
+        else:
+            kwargs['vlan_param'] = ""
+            
+        # Format the command with the provided parameters
+        try:
+            return template.format(**kwargs)
+        except KeyError as e:
+            raise KeyError(f"Missing parameter '{e}' for command '{command}'")

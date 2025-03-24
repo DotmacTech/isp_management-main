@@ -1,0 +1,259 @@
+{
+  "alerting": {
+    "connectors": [
+      {
+        "id": "network-performance-email",
+        "name": "Network Performance Email Alerts",
+        "type": ".email",
+        "config": {
+          "from": "alerts@isp-management.com",
+          "host": "smtp.example.com",
+          "port": 587,
+          "secure": true
+        },
+        "secrets": {
+          "user": "${SMTP_USER}",
+          "password": "${SMTP_PASSWORD}"
+        }
+      },
+      {
+        "id": "network-performance-slack",
+        "name": "Network Performance Slack Alerts",
+        "type": ".slack",
+        "config": {
+          "webhookUrl": "${SLACK_WEBHOOK_URL}"
+        }
+      }
+    ],
+    "rules": [
+      {
+        "id": "high-network-latency",
+        "name": "High Network Latency Alert",
+        "tags": ["network", "performance", "latency"],
+        "consumer": "alerts",
+        "schedule": {
+          "interval": "5m"
+        },
+        "enabled": true,
+        "rule_type_id": "threshold",
+        "params": {
+          "criteria": [
+            {
+              "aggType": "avg",
+              "termSize": 5,
+              "termField": "node_id",
+              "threshold": [50],
+              "timeSize": 5,
+              "timeUnit": "m",
+              "thresholdComparator": ">",
+              "aggField": "value",
+              "groupBy": "all"
+            }
+          ],
+          "index": "isp-metrics-*",
+          "timeField": "timestamp",
+          "filterQuery": "metric_type:NETWORK_LATENCY"
+        },
+        "actions": [
+          {
+            "group": "threshold_met",
+            "id": "network-performance-email",
+            "params": {
+              "to": ["network-ops@isp-management.com"],
+              "subject": "High Network Latency Alert",
+              "message": "High network latency detected.\n\nAverage latency: {{context.value}}ms\nThreshold: 50ms\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          },
+          {
+            "group": "threshold_met",
+            "id": "network-performance-slack",
+            "params": {
+              "message": ":warning: *High Network Latency Alert*\n\nAverage latency: {{context.value}}ms\nThreshold: 50ms\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "high-packet-loss",
+        "name": "High Packet Loss Alert",
+        "tags": ["network", "performance", "packet-loss"],
+        "consumer": "alerts",
+        "schedule": {
+          "interval": "5m"
+        },
+        "enabled": true,
+        "rule_type_id": "threshold",
+        "params": {
+          "criteria": [
+            {
+              "aggType": "avg",
+              "termSize": 5,
+              "termField": "node_id",
+              "threshold": [2],
+              "timeSize": 5,
+              "timeUnit": "m",
+              "thresholdComparator": ">",
+              "aggField": "value",
+              "groupBy": "all"
+            }
+          ],
+          "index": "isp-metrics-*",
+          "timeField": "timestamp",
+          "filterQuery": "metric_type:NETWORK_PACKET_LOSS"
+        },
+        "actions": [
+          {
+            "group": "threshold_met",
+            "id": "network-performance-email",
+            "params": {
+              "to": ["network-ops@isp-management.com"],
+              "subject": "High Packet Loss Alert",
+              "message": "High packet loss detected.\n\nAverage packet loss: {{context.value}}%\nThreshold: 2%\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          },
+          {
+            "group": "threshold_met",
+            "id": "network-performance-slack",
+            "params": {
+              "message": ":warning: *High Packet Loss Alert*\n\nAverage packet loss: {{context.value}}%\nThreshold: 2%\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "bandwidth-saturation",
+        "name": "Bandwidth Saturation Alert",
+        "tags": ["network", "performance", "bandwidth"],
+        "consumer": "alerts",
+        "schedule": {
+          "interval": "5m"
+        },
+        "enabled": true,
+        "rule_type_id": "threshold",
+        "params": {
+          "criteria": [
+            {
+              "aggType": "avg",
+              "termSize": 5,
+              "termField": "node_id",
+              "threshold": [85],
+              "timeSize": 5,
+              "timeUnit": "m",
+              "thresholdComparator": ">",
+              "aggField": "value",
+              "groupBy": "all"
+            }
+          ],
+          "index": "isp-metrics-*",
+          "timeField": "timestamp",
+          "filterQuery": "metric_type:NETWORK_BANDWIDTH_UTILIZATION"
+        },
+        "actions": [
+          {
+            "group": "threshold_met",
+            "id": "network-performance-email",
+            "params": {
+              "to": ["network-ops@isp-management.com"],
+              "subject": "Bandwidth Saturation Alert",
+              "message": "High bandwidth utilization detected.\n\nAverage utilization: {{context.value}}%\nThreshold: 85%\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          },
+          {
+            "group": "threshold_met",
+            "id": "network-performance-slack",
+            "params": {
+              "message": ":warning: *Bandwidth Saturation Alert*\n\nAverage utilization: {{context.value}}%\nThreshold: 85%\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "connection-spike",
+        "name": "Connection Count Spike Alert",
+        "tags": ["network", "performance", "connections"],
+        "consumer": "alerts",
+        "schedule": {
+          "interval": "5m"
+        },
+        "enabled": true,
+        "rule_type_id": "threshold",
+        "params": {
+          "criteria": [
+            {
+              "aggType": "avg",
+              "termSize": 5,
+              "termField": "node_id",
+              "threshold": [5000],
+              "timeSize": 5,
+              "timeUnit": "m",
+              "thresholdComparator": ">",
+              "aggField": "value",
+              "groupBy": "all"
+            }
+          ],
+          "index": "isp-metrics-*",
+          "timeField": "timestamp",
+          "filterQuery": "metric_type:NETWORK_CONNECTION_COUNT"
+        },
+        "actions": [
+          {
+            "group": "threshold_met",
+            "id": "network-performance-email",
+            "params": {
+              "to": ["network-ops@isp-management.com"],
+              "subject": "Connection Count Spike Alert",
+              "message": "Abnormal connection count detected.\n\nAverage connections: {{context.value}}\nThreshold: 5000\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          },
+          {
+            "group": "threshold_met",
+            "id": "network-performance-slack",
+            "params": {
+              "message": ":warning: *Connection Count Spike Alert*\n\nAverage connections: {{context.value}}\nThreshold: 5000\nAffected nodes: {{context.group}}\nTime: {{context.date}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "customer-quota-exceeded",
+        "name": "Customer Quota Exceeded Alert",
+        "tags": ["customer", "usage", "quota"],
+        "consumer": "alerts",
+        "schedule": {
+          "interval": "1h"
+        },
+        "enabled": true,
+        "rule_type_id": "threshold",
+        "params": {
+          "criteria": [
+            {
+              "aggType": "avg",
+              "termSize": 20,
+              "termField": "metadata.customer_id",
+              "threshold": [90],
+              "timeSize": 24,
+              "timeUnit": "h",
+              "thresholdComparator": ">",
+              "aggField": "metadata.quota_percentage",
+              "groupBy": "top"
+            }
+          ],
+          "index": "isp-metrics-*",
+          "timeField": "timestamp",
+          "filterQuery": "metric_type:CUSTOMER_DATA_USAGE"
+        },
+        "actions": [
+          {
+            "group": "threshold_met",
+            "id": "network-performance-email",
+            "params": {
+              "to": ["billing@isp-management.com"],
+              "subject": "Customer Quota Exceeded Alert",
+              "message": "Customer(s) have exceeded 90% of their data quota.\n\nCustomer IDs: {{context.group}}\nAverage quota usage: {{context.value}}%\nTime: {{context.date}}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "attributes": {
+    "title": "Network Node Status",
+    "visState": "{\"title\":\"Network Node Status\",\"type\":\"pie\",\"params\":{\"type\":\"pie\",\"addTooltip\":true,\"addLegend\":true,\"legendPosition\":\"right\",\"isDonut\":true,\"labels\":{\"show\":true,\"values\":true,\"last_level\":true,\"truncate\":100}},\"aggs\":[{\"id\":\"1\",\"enabled\":true,\"type\":\"count\",\"schema\":\"metric\",\"params\":{}},{\"id\":\"2\",\"enabled\":true,\"type\":\"terms\",\"schema\":\"segment\",\"params\":{\"field\":\"node_status.keyword\",\"orderBy\":\"1\",\"order\":\"desc\",\"size\":5,\"otherBucket\":false,\"otherBucketLabel\":\"Other\",\"missingBucket\":true,\"missingBucketLabel\":\"Unknown\"}}]}",
+    "uiStateJSON": "{\"vis\":{\"colors\":{\"Online\":\"#7EB26D\",\"Offline\":\"#E24D42\",\"Degraded\":\"#EAB839\",\"Unknown\":\"#447EBC\"}}}",
+    "description": "Pie chart showing the status distribution of network nodes",
+    "version": 1,
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"query\":\"metric_type:NETWORK_NODE_STATUS\",\"language\":\"kuery\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+    }
+  },
+  "references": [
+    {
+      "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+      "type": "index-pattern",
+      "id": "isp-network-metrics*"
+    }
+  ]
+}

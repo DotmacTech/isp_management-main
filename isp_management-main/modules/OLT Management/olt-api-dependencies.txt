@@ -1,0 +1,194 @@
+"""
+OLT Management API Dependencies
+
+This module provides FastAPI dependencies for the OLT management API endpoints.
+"""
+
+import logging
+from typing import Dict, Any
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+
+from ..olt.connection_pool import OLTConnectionPool
+from ..olt.factory import OLTAdapterFactory
+from ..olt.security import CredentialManager
+
+logger = logging.getLogger(__name__)
+
+# Initialize OAuth2 password bearer for token authentication
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# In-memory connection pool cache
+_connection_pools = {}
+
+# Initialize credential manager
+# In a production environment, this would use a secure key management system
+credential_manager = CredentialManager()
+
+
+async def get_olt_pool(request: Request) -> OLTConnectionPool:
+    """
+    Get or create an OLT connection pool for the requested OLT.
+    
+    This dependency extracts OLT information from the request path and provides
+    a connection pool for that specific OLT.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        OLTConnectionPool: Connection pool for the requested OLT
+        
+    Raises:
+        HTTPException: If the OLT is not found or connection fails
+    """
+    # Extract OLT ID from the request path
+    olt_id = None
+    for param, value in request.path_params.items():
+        if param == "olt_id":
+            olt_id = value
+            break
+    
+    if not olt_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OLT ID is required"
+        )
+    
+    # Check if we already have a connection pool for this OLT
+    if olt_id in _connection_pools:
+        return _connection_pools[olt_id]
+    
+    # Retrieve OLT details from database (simplified example)
+    # In a real implementation, this would query a database
+    # This is a simplified example with hardcoded values
+    olt_details = get_olt_details_from_db(olt_id)
+    
+    if not olt_details:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"OLT with ID {olt_id} not found"
+        )
+    
+    # Get credentials for the OLT
+    try:
+        username, password = credential_manager.get_credentials(olt_id)
+    except KeyError:
+        # Use details from database if not in credential manager
+        username = olt_details.get('username')
+        password = olt_details.get('password')
+        
+        # Store credentials for future use
+        credential_manager.store_credentials(olt_id, username, password)
+    
+    # Create a new connection pool
+    vendor = olt_details.get('vendor')
+    host = olt_details.get('ip_address')
+    
+    try:
+        # Create connection pool with additional parameters from OLT details
+        additional_params = {}
+        if vendor.lower() == 'huawei':
+            additional_params['default_frame'] = olt_details.get('default_frame', '0')
+            additional_params['default_slot'] = olt_details.get('default_slot', '0')
+        elif vendor.lower() == 'zte':
+            additional_params['default_gpon_index'] = olt_details.get('default_gpon_index', '1/1/1')
+        
+        pool = OLTConnectionPool(
+            vendor=vendor,
+            host=host,
+            username=username,
+            password=password,
+            max_connections=5,
+            idle_timeout=300,
+            **additional_params
+        )
+        
+        # Store the pool for reuse
+        _connection_pools[olt_id] = pool
+        
+        return pool
+    
+    except Exception as e:
+        logger.error(f"Failed to create connection pool for OLT {olt_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to OLT: {str(e)}"
+        )
+
+
+async def get_authenticated_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
+    """
+    Get the authenticated user from the token.
+    
+    This dependency validates the authentication token and returns
+    information about the authenticated user.
+    
+    Args:
+        token: OAuth2 token from request
+        
+    Returns:
+        Dict[str, Any]: User information
+        
+    Raises:
+        HTTPException: If authentication fails
+    """
+    # Simplified example - in a real implementation, this would validate
+    # the token and retrieve user information from a database
+    # For demonstration purposes, we'll just return a hardcoded user
+    
+    if token != "demo_token":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return {
+        "id": "1",
+        "username": "admin",
+        "role": "admin",
+        "permissions": ["read", "write", "admin"]
+    }
+
+
+def get_olt_details_from_db(olt_id: str) -> Dict[str, Any]:
+    """
+    Get OLT details from the database.
+    
+    This is a simplified example using hardcoded values.
+    In a real implementation, this would query a database.
+    
+    Args:
+        olt_id: OLT identifier
+        
+    Returns:
+        Dict[str, Any]: OLT details or None if not found
+    """
+    # Demo OLTs for testing
+    demo_olts = {
+        "1": {
+            "id": "1",
+            "name": "HQ-OLT-01",
+            "vendor": "huawei",
+            "model": "MA5800",
+            "ip_address": "192.168.1.10",
+            "username": "admin",
+            "password": "admin_password",
+            "default_frame": "0",
+            "default_slot": "0"
+        },
+        "2": {
+            "id": "2",
+            "name": "Branch-OLT-01",
+            "vendor": "zte",
+            "model": "C320",
+            "ip_address": "192.168.1.20",
+            "username": "admin",
+            "password": "admin_password",
+            "default_gpon_index": "1/1/1"
+        }
+    }
+    
+    return demo_olts.get(olt_id)
+    

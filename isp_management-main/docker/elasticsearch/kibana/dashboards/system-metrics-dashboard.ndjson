@@ -1,0 +1,49 @@
+{
+  "attributes": {
+    "title": "ISP Management - System Metrics Dashboard",
+    "hits": 0,
+    "description": "Overview of system metrics for the ISP Management Platform",
+    "panelsJSON": "[{\"embeddableConfig\":{\"title\":\"CPU Usage\"},\"gridData\":{\"h\":15,\"i\":\"1\",\"w\":24,\"x\":0,\"y\":0},\"id\":\"cpu-usage\",\"panelIndex\":\"1\",\"type\":\"visualization\",\"version\":\"7.17.0\"},{\"embeddableConfig\":{\"title\":\"Memory Usage\"},\"gridData\":{\"h\":15,\"i\":\"2\",\"w\":24,\"x\":24,\"y\":0},\"id\":\"memory-usage\",\"panelIndex\":\"2\",\"type\":\"visualization\",\"version\":\"7.17.0\"},{\"embeddableConfig\":{\"title\":\"Disk Usage\"},\"gridData\":{\"h\":15,\"i\":\"3\",\"w\":24,\"x\":0,\"y\":15},\"id\":\"disk-usage\",\"panelIndex\":\"3\",\"type\":\"visualization\",\"version\":\"7.17.0\"},{\"embeddableConfig\":{\"title\":\"Network Traffic\"},\"gridData\":{\"h\":15,\"i\":\"4\",\"w\":24,\"x\":24,\"y\":15},\"id\":\"network-traffic\",\"panelIndex\":\"4\",\"type\":\"visualization\",\"version\":\"7.17.0\"},{\"embeddableConfig\":{\"title\":\"Metrics by Service\"},\"gridData\":{\"h\":15,\"i\":\"5\",\"w\":48,\"x\":0,\"y\":30},\"id\":\"metrics-by-service\",\"panelIndex\":\"5\",\"type\":\"visualization\",\"version\":\"7.17.0\"}]",
+    "optionsJSON": "{\"hidePanelTitles\":false,\"useMargins\":true}",
+    "version": 1,
+    "timeRestore": true,
+    "timeTo": "now",
+    "timeFrom": "now-24h",
+    "refreshInterval": {
+      "pause": false,
+      "value": 60000
+    },
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"\"},\"filter\":[]}"
+    }
+  },
+  "id": "system-metrics-dashboard",
+  "type": "dashboard",
+  "references": [
+    {
+      "id": "cpu-usage",
+      "name": "panel_1",
+      "type": "visualization"
+    },
+    {
+      "id": "memory-usage",
+      "name": "panel_2",
+      "type": "visualization"
+    },
+    {
+      "id": "disk-usage",
+      "name": "panel_3",
+      "type": "visualization"
+    },
+    {
+      "id": "network-traffic",
+      "name": "panel_4",
+      "type": "visualization"
+    },
+    {
+      "id": "metrics-by-service",
+      "name": "panel_5",
+      "type": "visualization"
+    }
+  ]
+}

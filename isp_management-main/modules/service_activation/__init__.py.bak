@@ -1,0 +1,45 @@
+"""
+Service Activation Module for ISP Management Platform.
+
+This module automates the process of activating services for customers through a multi-step workflow.
+"""
+
+from isp_management.modules.service_activation.models import (
+    ServiceActivation,
+    ActivationStatus,
+    ActivationStep,
+    StepStatus,
+    ActivationLog
+)
+
+from isp_management.modules.service_activation.schemas import (
+    ServiceActivationCreate,
+    ServiceActivationUpdate,
+    ServiceActivationResponse,
+    ActivationStepCreate,
+    ActivationStepUpdate,
+    ActivationStepResponse,
+    ActivationLogCreate,
+    ActivationLogResponse
+)
+
+from isp_management.modules.service_activation.workflow_engine import WorkflowEngine
+from isp_management.modules.service_activation.services import ActivationService
+
+__all__ = [
+    "ServiceActivation",
+    "ActivationStatus",
+    "ActivationStep",
+    "StepStatus",
+    "ActivationLog",
+    "ServiceActivationCreate",
+    "ServiceActivationUpdate",
+    "ServiceActivationResponse",
+    "ActivationStepCreate",
+    "ActivationStepUpdate",
+    "ActivationStepResponse",
+    "ActivationLogCreate",
+    "ActivationLogResponse",
+    "WorkflowEngine",
+    "ActivationService"
+]

@@ -1,0 +1,11 @@
+"""
+CRM & Ticketing Module for ISP Management Platform.
+
+This module manages customer interactions and support tickets, providing
+a comprehensive system for tracking customer communications, support tickets,
+and service level agreements.
+"""
+
+from .endpoints import router as crm_ticketing_router
+
+__all__ = ["crm_ticketing_router"]

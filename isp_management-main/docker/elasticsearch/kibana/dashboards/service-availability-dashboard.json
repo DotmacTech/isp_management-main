@@ -1,0 +1,62 @@
+{
+  "attributes": {
+    "title": "Service Availability Dashboard",
+    "hits": 0,
+    "description": "Dashboard for monitoring service availability and outages",
+    "panelsJSON": "[{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":8,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{\"title\":\"Service Status Overview\"},\"panelRefName\":\"panel_0\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":24,\"y\":0,\"w\":24,\"h\":8,\"i\":\"2\"},\"panelIndex\":\"2\",\"embeddableConfig\":{\"title\":\"Active Outages\"},\"panelRefName\":\"panel_1\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":8,\"w\":24,\"h\":12,\"i\":\"3\"},\"panelIndex\":\"3\",\"embeddableConfig\":{\"title\":\"Service Response Time\"},\"panelRefName\":\"panel_2\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":24,\"y\":8,\"w\":24,\"h\":12,\"i\":\"4\"},\"panelIndex\":\"4\",\"embeddableConfig\":{\"title\":\"Service Status History\"},\"panelRefName\":\"panel_3\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":20,\"w\":48,\"h\":12,\"i\":\"5\"},\"panelIndex\":\"5\",\"embeddableConfig\":{\"title\":\"Recent Outages\"},\"panelRefName\":\"panel_4\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":32,\"w\":24,\"h\":12,\"i\":\"6\"},\"panelIndex\":\"6\",\"embeddableConfig\":{\"title\":\"Outages by Service\"},\"panelRefName\":\"panel_5\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":24,\"y\":32,\"w\":24,\"h\":12,\"i\":\"7\"},\"panelIndex\":\"7\",\"embeddableConfig\":{\"title\":\"Outages by Severity\"},\"panelRefName\":\"panel_6\"},{\"version\":\"7.10.0\",\"gridData\":{\"x\":0,\"y\":44,\"w\":48,\"h\":12,\"i\":\"8\"},\"panelIndex\":\"8\",\"embeddableConfig\":{\"title\":\"Maintenance Windows\"},\"panelRefName\":\"panel_7\"}]",
+    "optionsJSON": "{\"hidePanelTitles\":false,\"useMargins\":true}",
+    "version": 1,
+    "timeRestore": true,
+    "timeTo": "now",
+    "timeFrom": "now-24h",
+    "refreshInterval": {
+      "pause": false,
+      "value": 60000
+    },
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"\"},\"filter\":[]}"
+    }
+  },
+  "references": [
+    {
+      "name": "panel_0",
+      "type": "visualization",
+      "id": "service-status-overview"
+    },
+    {
+      "name": "panel_1",
+      "type": "visualization",
+      "id": "active-outages"
+    },
+    {
+      "name": "panel_2",
+      "type": "visualization",
+      "id": "service-response-time"
+    },
+    {
+      "name": "panel_3",
+      "type": "visualization",
+      "id": "service-status-history"
+    },
+    {
+      "name": "panel_4",
+      "type": "visualization",
+      "id": "recent-outages"
+    },
+    {
+      "name": "panel_5",
+      "type": "visualization",
+      "id": "outages-by-service"
+    },
+    {
+      "name": "panel_6",
+      "type": "visualization",
+      "id": "outages-by-severity"
+    },
+    {
+      "name": "panel_7",
+      "type": "visualization",
+      "id": "maintenance-windows"
+    }
+  ]
+}

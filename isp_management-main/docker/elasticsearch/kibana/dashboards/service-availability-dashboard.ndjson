@@ -1,0 +1,167 @@
+[
+  {
+    "attributes": {
+      "title": "ISP Management - Service Availability Dashboard",
+      "hits": 0,
+      "description": "Dashboard for monitoring service availability and performance across the ISP infrastructure",
+      "panelsJSON": "[{\"embeddableConfig\":{\"title\":\"Service Availability Overview\"},\"gridData\":{\"h\":15,\"i\":\"1\",\"w\":24,\"x\":0,\"y\":0},\"id\":\"service-availability-overview\",\"panelIndex\":\"1\",\"type\":\"visualization\",\"version\":\"7.10.0\"},{\"embeddableConfig\":{\"title\":\"Service Response Time\"},\"gridData\":{\"h\":15,\"i\":\"2\",\"w\":24,\"x\":24,\"y\":0},\"id\":\"service-response-time\",\"panelIndex\":\"2\",\"type\":\"visualization\",\"version\":\"7.10.0\"},{\"embeddableConfig\":{\"title\":\"Service Error Rates\"},\"gridData\":{\"h\":15,\"i\":\"3\",\"w\":24,\"x\":0,\"y\":15},\"id\":\"service-error-rates\",\"panelIndex\":\"3\",\"type\":\"visualization\",\"version\":\"7.10.0\"},{\"embeddableConfig\":{\"title\":\"Service Health Status\"},\"gridData\":{\"h\":15,\"i\":\"4\",\"w\":24,\"x\":24,\"y\":15},\"id\":\"service-health-status\",\"panelIndex\":\"4\",\"type\":\"visualization\",\"version\":\"7.10.0\"},{\"embeddableConfig\":{\"title\":\"Recent Service Outages\"},\"gridData\":{\"h\":15,\"i\":\"5\",\"w\":48,\"x\":0,\"y\":30},\"id\":\"recent-service-outages\",\"panelIndex\":\"5\",\"type\":\"search\",\"version\":\"7.10.0\"}]",
+      "optionsJSON": "{\"hidePanelTitles\":false,\"useMargins\":true}",
+      "version": 1,
+      "timeRestore": true,
+      "timeTo": "now",
+      "timeFrom": "now-24h",
+      "refreshInterval": {
+        "pause": false,
+        "value": 60000
+      },
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"\"},\"filter\":[]}"
+      }
+    },
+    "id": "service-availability-dashboard",
+    "type": "dashboard",
+    "references": [
+      {
+        "id": "service-availability-overview",
+        "name": "panel_1",
+        "type": "visualization"
+      },
+      {
+        "id": "service-response-time",
+        "name": "panel_2",
+        "type": "visualization"
+      },
+      {
+        "id": "service-error-rates",
+        "name": "panel_3",
+        "type": "visualization"
+      },
+      {
+        "id": "service-health-status",
+        "name": "panel_4",
+        "type": "visualization"
+      },
+      {
+        "id": "recent-service-outages",
+        "name": "panel_5",
+        "type": "search"
+      }
+    ]
+  },
+  {
+    "attributes": {
+      "title": "Service Availability Overview",
+      "visState": "{\"title\":\"Service Availability Overview\",\"type\":\"gauge\",\"params\":{\"addLegend\":true,\"addTooltip\":true,\"gauge\":{\"alignment\":\"automatic\",\"backStyle\":\"Full\",\"colorSchema\":\"Green to Red\",\"colorsRange\":[{\"from\":0,\"to\":95},{\"from\":95,\"to\":98},{\"from\":98,\"to\":99.5},{\"from\":99.5,\"to\":100}],\"extendRange\":true,\"gaugeColorMode\":\"Labels\",\"gaugeStyle\":\"Full\",\"gaugeType\":\"Arc\",\"invertColors\":true,\"labels\":{\"color\":\"black\",\"show\":true},\"orientation\":\"vertical\",\"percentageMode\":true,\"scale\":{\"color\":\"#333\",\"labels\":false,\"show\":true},\"style\":{\"bgColor\":false,\"bgFill\":\"#000\",\"bgMask\":false,\"bgWidth\":0.9,\"fontSize\":60,\"mask\":false,\"maskBars\":50,\"subText\":\"\",\"width\":0.9},\"type\":\"meter\",\"verticalSplit\":false},\"isDisplayWarning\":false,\"type\":\"gauge\"},\"aggs\":[{\"id\":\"1\",\"enabled\":true,\"type\":\"avg\",\"schema\":\"metric\",\"params\":{\"field\":\"value\",\"customLabel\":\"Uptime Percentage\"}},{\"id\":\"2\",\"enabled\":true,\"type\":\"terms\",\"schema\":\"group\",\"params\":{\"field\":\"service_name\",\"orderBy\":\"1\",\"order\":\"desc\",\"size\":10,\"otherBucket\":false,\"otherBucketLabel\":\"Other\",\"missingBucket\":false,\"missingBucketLabel\":\"Missing\"}}]}",
+      "uiStateJSON": "{\"vis\":{\"defaultColors\":{\"0 - 95\":\"rgb(165,0,38)\",\"95 - 98\":\"rgb(253,191,111)\",\"98 - 99.5\":\"rgb(183,224,117)\",\"99.5 - 100\":\"rgb(0,104,55)\"}}}",
+      "description": "Service availability percentage by service",
+      "version": 1,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"metric_type:SERVICE_UPTIME\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      }
+    },
+    "id": "service-availability-overview",
+    "type": "visualization",
+    "references": [
+      {
+        "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+        "type": "index-pattern",
+        "id": "isp-metrics-*"
+      }
+    ]
+  },
+  {
+    "attributes": {
+      "title": "Service Response Time",
+      "visState": "{\"title\":\"Service Response Time\",\"type\":\"line\",\"params\":{\"addLegend\":true,\"addTimeMarker\":false,\"addTooltip\":true,\"categoryAxes\":[{\"id\":\"CategoryAxis-1\",\"labels\":{\"show\":true,\"truncate\":100},\"position\":\"bottom\",\"scale\":{\"type\":\"linear\"},\"show\":true,\"style\":{},\"title\":{},\"type\":\"category\"}],\"dimensions\":{\"x\":{\"accessor\":0,\"format\":{\"id\":\"date\",\"params\":{\"pattern\":\"HH:mm:ss\"}},\"params\":{\"date\":true,\"interval\":\"PT30S\",\"format\":\"HH:mm:ss\"},\"aggType\":\"date_histogram\"},\"y\":[{\"accessor\":1,\"format\":{\"id\":\"number\",\"params\":{\"pattern\":\"0,0.00 ms\"}},\"params\":{},\"aggType\":\"avg\"}]},\"grid\":{\"categoryLines\":false},\"labels\":{},\"legendPosition\":\"right\",\"seriesParams\":[{\"data\":{\"label\":\"Average Response Time\",\"id\":\"1\"},\"drawLinesBetweenPoints\":true,\"mode\":\"normal\",\"show\":\"true\",\"showCircles\":true,\"type\":\"line\",\"valueAxis\":\"ValueAxis-1\"}],\"thresholdLine\":{\"color\":\"#E7664C\",\"show\":true,\"style\":\"full\",\"value\":500,\"width\":1},\"times\":[],\"type\":\"line\",\"valueAxes\":[{\"id\":\"ValueAxis-1\",\"labels\":{\"filter\":false,\"rotate\":0,\"show\":true,\"truncate\":100},\"name\":\"LeftAxis-1\",\"position\":\"left\",\"scale\":{\"mode\":\"normal\",\"type\":\"linear\"},\"show\":true,\"style\":{},\"title\":{\"text\":\"Average Response Time (ms)\"},\"type\":\"value\"}]},\"aggs\":[{\"id\":\"1\",\"enabled\":true,\"type\":\"avg\",\"schema\":\"metric\",\"params\":{\"field\":\"value\",\"customLabel\":\"Average Response Time\"}},{\"id\":\"2\",\"enabled\":true,\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"timestamp\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"useNormalizedEsInterval\":true,\"interval\":\"auto\",\"drop_partials\":false,\"min_doc_count\":1,\"extended_bounds\":{}}},{\"id\":\"3\",\"enabled\":true,\"type\":\"terms\",\"schema\":\"group\",\"params\":{\"field\":\"service_name\",\"orderBy\":\"1\",\"order\":\"desc\",\"size\":5,\"otherBucket\":true,\"otherBucketLabel\":\"Other\",\"missingBucket\":false,\"missingBucketLabel\":\"Missing\"}}]}",
+      "uiStateJSON": "{}",
+      "description": "Service response time over time by service",
+      "version": 1,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"metric_type:SERVICE_RESPONSE_TIME\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      }
+    },
+    "id": "service-response-time",
+    "type": "visualization",
+    "references": [
+      {
+        "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+        "type": "index-pattern",
+        "id": "isp-metrics-*"
+      }
+    ]
+  },
+  {
+    "attributes": {
+      "title": "Service Error Rates",
+      "visState": "{\"title\":\"Service Error Rates\",\"type\":\"histogram\",\"params\":{\"addLegend\":true,\"addTimeMarker\":false,\"addTooltip\":true,\"categoryAxes\":[{\"id\":\"CategoryAxis-1\",\"labels\":{\"show\":true,\"truncate\":100},\"position\":\"bottom\",\"scale\":{\"type\":\"linear\"},\"show\":true,\"style\":{},\"title\":{},\"type\":\"category\"}],\"dimensions\":{\"x\":{\"accessor\":0,\"format\":{\"id\":\"date\",\"params\":{\"pattern\":\"HH:mm:ss\"}},\"params\":{\"date\":true,\"interval\":\"PT30S\",\"format\":\"HH:mm:ss\"},\"aggType\":\"date_histogram\"},\"y\":[{\"accessor\":1,\"format\":{\"id\":\"number\",\"params\":{\"pattern\":\"0,0.00%\"}},\"params\":{},\"aggType\":\"avg\"}]},\"grid\":{\"categoryLines\":false},\"labels\":{},\"legendPosition\":\"right\",\"seriesParams\":[{\"data\":{\"label\":\"Error Rate\",\"id\":\"1\"},\"drawLinesBetweenPoints\":true,\"mode\":\"stacked\",\"show\":\"true\",\"showCircles\":true,\"type\":\"histogram\",\"valueAxis\":\"ValueAxis-1\"}],\"thresholdLine\":{\"color\":\"#E7664C\",\"show\":true,\"style\":\"full\",\"value\":5,\"width\":1},\"times\":[],\"type\":\"histogram\",\"valueAxes\":[{\"id\":\"ValueAxis-1\",\"labels\":{\"filter\":false,\"rotate\":0,\"show\":true,\"truncate\":100},\"name\":\"LeftAxis-1\",\"position\":\"left\",\"scale\":{\"mode\":\"normal\",\"type\":\"linear\"},\"show\":true,\"style\":{},\"title\":{\"text\":\"Error Rate (%)\"},\"type\":\"value\"}]},\"aggs\":[{\"id\":\"1\",\"enabled\":true,\"type\":\"avg\",\"schema\":\"metric\",\"params\":{\"field\":\"value\",\"customLabel\":\"Error Rate\"}},{\"id\":\"2\",\"enabled\":true,\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"timestamp\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"useNormalizedEsInterval\":true,\"interval\":\"auto\",\"drop_partials\":false,\"min_doc_count\":1,\"extended_bounds\":{}}},{\"id\":\"3\",\"enabled\":true,\"type\":\"terms\",\"schema\":\"group\",\"params\":{\"field\":\"service_name\",\"orderBy\":\"1\",\"order\":\"desc\",\"size\":5,\"otherBucket\":false,\"otherBucketLabel\":\"Other\",\"missingBucket\":false,\"missingBucketLabel\":\"Missing\"}}]}",
+      "uiStateJSON": "{}",
+      "description": "Service error rates over time by service",
+      "version": 1,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"metric_type:SERVICE_ERROR_RATE\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      }
+    },
+    "id": "service-error-rates",
+    "type": "visualization",
+    "references": [
+      {
+        "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+        "type": "index-pattern",
+        "id": "isp-metrics-*"
+      }
+    ]
+  },
+  {
+    "attributes": {
+      "title": "Service Health Status",
+      "visState": "{\"title\":\"Service Health Status\",\"type\":\"metric\",\"params\":{\"addLegend\":false,\"addTooltip\":true,\"colorSchema\":\"Green to Red\",\"colorMode\":\"Background\",\"colorsRange\":[{\"from\":0,\"to\":0.33},{\"from\":0.33,\"to\":0.66},{\"from\":0.66,\"to\":1}],\"invertColors\":true,\"labels\":{\"show\":true},\"metricColorMode\":\"None\",\"metrics\":[{\"type\":\"count\",\"field\":\"value\"}],\"percentageMode\":false,\"style\":{\"bgFill\":\"#000\",\"bgColor\":false,\"labelColor\":false,\"subText\":\"\",\"fontSize\":60},\"dimensions\":{\"metrics\":[{\"type\":\"vis_dimension\",\"accessor\":0,\"format\":{\"id\":\"string\",\"params\":{}}}]},\"type\":\"metric\"},\"aggs\":[{\"id\":\"1\",\"enabled\":true,\"type\":\"top_hits\",\"schema\":\"metric\",\"params\":{\"field\":\"status\",\"aggregate\":\"concat\",\"size\":1,\"sortField\":\"timestamp\",\"sortOrder\":\"desc\",\"customLabel\":\"\"}},{\"id\":\"2\",\"enabled\":true,\"type\":\"terms\",\"schema\":\"group\",\"params\":{\"field\":\"service_name\",\"orderBy\":\"_key\",\"order\":\"asc\",\"size\":10,\"otherBucket\":false,\"otherBucketLabel\":\"Other\",\"missingBucket\":false,\"missingBucketLabel\":\"Missing\"}}]}",
+      "uiStateJSON": "{\"vis\":{\"defaultColors\":{\"0 - 0.33\":\"rgb(0,104,55)\",\"0.33 - 0.66\":\"rgb(183,224,117)\",\"0.66 - 1\":\"rgb(165,0,38)\"}}}",
+      "description": "Current health status of each service",
+      "version": 1,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"metric_type:SERVICE_HEALTH\"},\"filter\":[],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      }
+    },
+    "id": "service-health-status",
+    "type": "visualization",
+    "references": [
+      {
+        "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+        "type": "index-pattern",
+        "id": "isp-metrics-*"
+      }
+    ]
+  },
+  {
+    "attributes": {
+      "title": "Recent Service Outages",
+      "columns": [
+        "timestamp",
+        "service_name",
+        "message",
+        "duration_seconds"
+      ],
+      "description": "Recent service outages and downtime events",
+      "hits": 0,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"highlightAll\":true,\"version\":true,\"query\":{\"query\":\"log_level:ERROR AND (message:*outage* OR message:*unavailable* OR message:*downtime*)\",\"language\":\"kuery\"},\"filter\":[{\"meta\":{\"alias\":null,\"negate\":false,\"disabled\":false,\"type\":\"range\",\"key\":\"timestamp\",\"params\":{\"gte\":\"now-7d\",\"lt\":\"now\"}},\"range\":{\"timestamp\":{\"gte\":\"now-7d\",\"lt\":\"now\"}},\"$state\":{\"store\":\"appState\"}}],\"indexRefName\":\"kibanaSavedObjectMeta.searchSourceJSON.index\"}"
+      },
+      "sort": [
+        [
+          "timestamp",
+          "desc"
+        ]
+      ],
+      "version": 1
+    },
+    "id": "recent-service-outages",
+    "type": "search",
+    "references": [
+      {
+        "name": "kibanaSavedObjectMeta.searchSourceJSON.index",
+        "id": "isp-logs-*",
+        "type": "index-pattern"
+      }
+    ]
+  }
+]

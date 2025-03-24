@@ -1,0 +1,28 @@
+network_management/
+├── __init__.py                  # Package initialization
+├── olt/
+│   ├── __init__.py              # OLT module initialization
+│   ├── adapters/
+│   │   ├── __init__.py          # Adapters package
+│   │   ├── base.py              # Base OLT adapter abstract class
+│   │   ├── huawei_adapter.py    # Huawei-specific adapter implementation
+│   │   ├── zte_adapter.py       # ZTE-specific adapter implementation
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       ├── ssh_client.py    # Common SSH functionality
+│   │       ├── telnet_client.py # Common Telnet functionality
+│   │       └── parsers.py       # Output parsing utilities
+│   ├── factory.py               # Factory class for creating adapters
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── olt.py               # OLT data models
+│   │   ├── ont.py               # ONT data models
+│   │   └── command_templates.py # Vendor-specific command templates
+│   ├── exceptions.py            # Custom exceptions for OLT module
+│   ├── connection_pool.py       # Connection pooling implementation
+│   └── security.py              # Security utilities for credentials
+└── api/
+    ├── __init__.py
+    ├── routes.py                # FastAPI route definitions
+    ├── dependencies.py          # API dependencies
+    └── schemas.py               # Pydantic schemas for API

@@ -1,0 +1,211 @@
+"""
+OLT Connection Pool Module
+
+This module provides a connection pool for OLT adapters to efficiently manage
+connections to OLT devices and enable resource reuse.
+"""
+
+import logging
+import time
+import threading
+from typing import Dict, List, Any, Optional
+from contextlib import contextmanager
+
+from .adapters.base import OLTAdapter
+from .factory import OLTAdapterFactory
+from .exceptions import OLTConnectionError, PoolExhaustedError
+
+logger = logging.getLogger(__name__)
+
+class OLTConnectionPool:
+    """
+    Connection pool for managing OLT adapter connections.
+    
+    This class provides a pool of OLT adapter instances for a specific vendor
+    and host, allowing efficient reuse of connections and preventing excessive
+    connection establishment.
+    """
+    
+    def __init__(self, vendor: str, host: str, username: str, password: str, 
+                max_connections: int = 5, idle_timeout: int = 300, **adapter_kwargs):
+        """
+        Initialize a new OLT connection pool.
+        
+        Args:
+            vendor: OLT vendor name
+            host: OLT hostname or IP address
+            username: Authentication username
+            password: Authentication password
+            max_connections: Maximum number of connections in the pool (default: 5)
+            idle_timeout: Time in seconds after which idle connections are closed (default: 300)
+            **adapter_kwargs: Additional adapter-specific parameters
+        """
+        self.vendor = vendor
+        self.host = host
+        self.username = username
+        self.password = password
+        self.max_connections = max_connections
+        self.idle_timeout = idle_timeout
+        self.adapter_kwargs = adapter_kwargs
+        
+        # Connection pool and management data
+        self.pool = []  # List of available adapter instances
+        self.active = {}  # Map of adapter instances to last activity time
+        self.lock = threading.RLock()  # Lock for thread safety
+        self.cleanup_timer = None  # Timer for periodic cleanup
+        
+        logger.info(f"Initialized OLT connection pool for {vendor} OLT at {host}")
+        
+        # Start cleanup timer
+        self._start_cleanup_timer()
+    
+    def _start_cleanup_timer(self):
+        """Start the periodic cleanup timer."""
+        self.cleanup_timer = threading.Timer(self.idle_timeout, self._cleanup_idle_connections)
+        self.cleanup_timer.daemon = True
+        self.cleanup_timer.start()
+    
+    def _cleanup_idle_connections(self):
+        """Clean up idle connections that have exceeded the idle timeout."""
+        try:
+            with self.lock:
+                current_time = time.time()
+                # Check each connection in the pool
+                to_remove = []
+                for i, adapter in enumerate(self.pool):
+                    last_activity = self.active.get(id(adapter), 0)
+                    if current_time - last_activity > self.idle_timeout:
+                        to_remove.append(i)
+                
+                # Close and remove idle connections (in reverse order)
+                for i in reversed(to_remove):
+                    adapter = self.pool.pop(i)
+                    if id(adapter) in self.active:
+                        del self.active[id(adapter)]
+                    adapter.disconnect()
+                    logger.debug(f"Closed idle connection to {self.host} (idle for {current_time - last_activity:.2f}s)")
+            
+            # Schedule the next cleanup
+            self._start_cleanup_timer()
+        except Exception as e:
+            logger.error(f"Error during idle connection cleanup: {str(e)}")
+            # Ensure timer is restarted even if an error occurs
+            self._start_cleanup_timer()
+    
+    def _create_adapter(self) -> OLTAdapter:
+        """
+        Create a new OLT adapter instance.
+        
+        Returns:
+            OLTAdapter: A new adapter instance
+            
+        Raises:
+            OLTConnectionError: If the connection fails
+        """
+        adapter = OLTAdapterFactory.create_adapter(
+            vendor=self.vendor,
+            host=self.host,
+            username=self.username,
+            password=self.password,
+            **self.adapter_kwargs
+        )
+        
+        # Connect to the OLT
+        if not adapter.connect():
+            raise OLTConnectionError(f"Failed to connect to {self.vendor} OLT at {self.host}")
+        
+        return adapter
+    
+    @contextmanager
+    def get_adapter(self):
+        """
+        Get an OLT adapter from the pool.
+        
+        This context manager provides an adapter instance and ensures it is
+        properly returned to the pool when the context exits.
+        
+        Yields:
+            OLTAdapter: An OLT adapter instance
+            
+        Raises:
+            PoolExhaustedError: If the pool is exhausted and no new connections can be created
+            OLTConnectionError: If a connection to the OLT cannot be established
+        """
+        adapter = None
+        created_new = False
+        
+        try:
+            # Try to get an adapter from the pool
+            with self.lock:
+                if self.pool:
+                    adapter = self.pool.pop()
+                    logger.debug(f"Reusing connection from pool for {self.host}")
+                elif len(self.active) < self.max_connections:
+                    adapter = self._create_adapter()
+                    created_new = True
+                    logger.debug(f"Created new connection to {self.host}")
+                else:
+                    raise PoolExhaustedError(
+                        f"Connection pool exhausted for {self.host} (max_connections={self.max_connections})"
+                    )
+                
+                # Update activity time
+                self.active[id(adapter)] = time.time()
+            
+            # Check if the connection is still active
+            if not adapter.is_connected():
+                logger.debug(f"Connection to {self.host} lost, reconnecting")
+                if not adapter.connect():
+                    raise OLTConnectionError(f"Failed to reconnect to {self.vendor} OLT at {self.host}")
+            
+            # Yield the adapter to the caller
+            yield adapter
+            
+        except Exception:
+            # If an error occurs, don't return the adapter to the pool
+            if adapter:
+                with self.lock:
+                    if id(adapter) in self.active:
+                        del self.active[id(adapter)]
+                adapter.disconnect()
+            raise
+            
+        finally:
+            # Return the adapter to the pool if it's still valid
+            if adapter and adapter.is_connected():
+                with self.lock:
+                    if len(self.pool) < self.max_connections:
+                        self.pool.append(adapter)
+                        self.active[id(adapter)] = time.time()
+                        logger.debug(f"Returned connection to pool for {self.host}")
+                    else:
+                        # Pool is full, close this connection
+                        if id(adapter) in self.active:
+                            del self.active[id(adapter)]
+                        adapter.disconnect()
+                        logger.debug(f"Closed excessive connection to {self.host}")
+    
+    def close_all(self):
+        """Close all connections in the pool."""
+        with self.lock:
+            # Close all connections in the pool
+            for adapter in self.pool:
+                adapter.disconnect()
+            
+            # Clear the pool and active connections
+            self.pool = []
+            self.active = {}
+            
+            # Cancel the cleanup timer
+            if self.cleanup_timer:
+                self.cleanup_timer.cancel()
+                self.cleanup_timer = None
+            
+            logger.info(f"Closed all connections in pool for {self.host}")
+    
+    def __del__(self):
+        """Clean up resources when the pool is garbage collected."""
+        try:
+            self.close_all()
+        except:
+            pass  # Ignore errors during cleanup

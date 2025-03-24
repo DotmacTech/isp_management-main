@@ -1,0 +1,330 @@
+[
+{
+  "attributes": {
+    "name": "Network Performance Alerts",
+    "tags": ["network", "performance", "monitoring"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "aggType": "avg",
+      "termSize": 6,
+      "thresholdComparator": ">",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "groupBy": "node_id",
+      "threshold": [50],
+      "index": ["isp-network-metrics*"],
+      "timeField": "@timestamp",
+      "aggField": "latency",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "exists": {
+                  "field": "latency"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "group": "threshold_met",
+        "id": "email-connector",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "High Network Latency Alert",
+          "message": "High network latency detected for node: {{context.group}}. Current value: {{context.value}} ms (threshold: {{rule.params.threshold}} ms)."
+        }
+      },
+      {
+        "group": "threshold_met",
+        "id": "slack-connector",
+        "params": {
+          "message": ":warning: *High Network Latency Alert*\nHigh network latency detected for node: {{context.group}}.\nCurrent value: {{context.value}} ms (threshold: {{rule.params.threshold}} ms)."
+        }
+      }
+    ],
+    "notifyWhen": "onActionGroupChange",
+    "throttle": "1h"
+  },
+  "references": [
+    {
+      "name": "email-connector",
+      "id": "email-connector",
+      "type": "action"
+    },
+    {
+      "name": "slack-connector",
+      "id": "slack-connector",
+      "type": "action"
+    }
+  ]
+},
+{
+  "attributes": {
+    "name": "High Packet Loss Alert",
+    "tags": ["network", "performance", "monitoring"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "aggType": "avg",
+      "termSize": 6,
+      "thresholdComparator": ">",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "groupBy": "node_id",
+      "threshold": [2],
+      "index": ["isp-network-metrics*"],
+      "timeField": "@timestamp",
+      "aggField": "packet_loss",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "exists": {
+                  "field": "packet_loss"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "group": "threshold_met",
+        "id": "email-connector",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "High Packet Loss Alert",
+          "message": "High packet loss detected for node: {{context.group}}. Current value: {{context.value}}% (threshold: {{rule.params.threshold}}%)."
+        }
+      },
+      {
+        "group": "threshold_met",
+        "id": "slack-connector",
+        "params": {
+          "message": ":warning: *High Packet Loss Alert*\nHigh packet loss detected for node: {{context.group}}.\nCurrent value: {{context.value}}% (threshold: {{rule.params.threshold}}%)."
+        }
+      }
+    ],
+    "notifyWhen": "onActionGroupChange",
+    "throttle": "1h"
+  },
+  "references": [
+    {
+      "name": "email-connector",
+      "id": "email-connector",
+      "type": "action"
+    },
+    {
+      "name": "slack-connector",
+      "id": "slack-connector",
+      "type": "action"
+    }
+  ]
+},
+{
+  "attributes": {
+    "name": "Bandwidth Saturation Alert",
+    "tags": ["network", "performance", "monitoring"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "aggType": "avg",
+      "termSize": 6,
+      "thresholdComparator": ">",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "groupBy": "node_id",
+      "threshold": [85],
+      "index": ["isp-network-metrics*"],
+      "timeField": "@timestamp",
+      "aggField": "bandwidth_utilization",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "exists": {
+                  "field": "bandwidth_utilization"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "group": "threshold_met",
+        "id": "email-connector",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "Bandwidth Saturation Alert",
+          "message": "High bandwidth utilization detected for node: {{context.group}}. Current value: {{context.value}}% (threshold: {{rule.params.threshold}}%)."
+        }
+      },
+      {
+        "group": "threshold_met",
+        "id": "slack-connector",
+        "params": {
+          "message": ":warning: *Bandwidth Saturation Alert*\nHigh bandwidth utilization detected for node: {{context.group}}.\nCurrent value: {{context.value}}% (threshold: {{rule.params.threshold}}%)."
+        }
+      }
+    ],
+    "notifyWhen": "onActionGroupChange",
+    "throttle": "1h"
+  },
+  "references": [
+    {
+      "name": "email-connector",
+      "id": "email-connector",
+      "type": "action"
+    },
+    {
+      "name": "slack-connector",
+      "id": "slack-connector",
+      "type": "action"
+    }
+  ]
+},
+{
+  "attributes": {
+    "name": "Connection Count Spike Alert",
+    "tags": ["network", "performance", "monitoring"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "aggType": "avg",
+      "termSize": 6,
+      "thresholdComparator": ">",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "groupBy": "node_id",
+      "threshold": [5000],
+      "index": ["isp-network-metrics*"],
+      "timeField": "@timestamp",
+      "aggField": "connection_count",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "exists": {
+                  "field": "connection_count"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "group": "threshold_met",
+        "id": "email-connector",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "Connection Count Spike Alert",
+          "message": "High connection count detected for node: {{context.group}}. Current value: {{context.value}} connections (threshold: {{rule.params.threshold}})."
+        }
+      },
+      {
+        "group": "threshold_met",
+        "id": "slack-connector",
+        "params": {
+          "message": ":warning: *Connection Count Spike Alert*\nHigh connection count detected for node: {{context.group}}.\nCurrent value: {{context.value}} connections (threshold: {{rule.params.threshold}})."
+        }
+      }
+    ],
+    "notifyWhen": "onActionGroupChange",
+    "throttle": "1h"
+  },
+  "references": [
+    {
+      "name": "email-connector",
+      "id": "email-connector",
+      "type": "action"
+    },
+    {
+      "name": "slack-connector",
+      "id": "slack-connector",
+      "type": "action"
+    }
+  ]
+},
+{
+  "attributes": {
+    "name": "Customer Quota Exceeded Alert",
+    "tags": ["customer", "usage", "monitoring"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "15m"
+    },
+    "params": {
+      "aggType": "avg",
+      "termSize": 10,
+      "thresholdComparator": ">",
+      "timeWindowSize": 15,
+      "timeWindowUnit": "m",
+      "groupBy": "customer_id",
+      "threshold": [90],
+      "index": ["isp-customer-usage*"],
+      "timeField": "@timestamp",
+      "aggField": "quota_percentage",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "filter": [
+              {
+                "exists": {
+                  "field": "quota_percentage"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "group": "threshold_met",
+        "id": "email-connector",
+        "params": {
+          "to": ["support@example.com"],
+          "subject": "Customer Quota Exceeded Alert",
+          "message": "Customer {{context.group}} has exceeded 90% of their data quota. Current usage: {{context.value}}% of quota."
+        }
+      }
+    ],
+    "notifyWhen": "onActionGroupChange",
+    "throttle": "6h"
+  },
+  "references": [
+    {
+      "name": "email-connector",
+      "id": "email-connector",
+      "type": "action"
+    }
+  ]
+}
+]

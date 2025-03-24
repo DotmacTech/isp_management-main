@@ -1,0 +1,970 @@
+"""
+Huawei OLT Adapter Module
+
+This module provides the implementation of the OLT adapter for Huawei OLT devices.
+It handles communication with Huawei OLT devices using SSH and vendor-specific commands.
+"""
+
+import time
+import logging
+from typing import Optional, Dict, List, Any, Tuple
+
+from .base import OLTAdapter
+from .utils.ssh_client import SSHClient
+from .utils.parsers import HuaweiParser
+from ..models.command_templates import HuaweiCommandTemplates
+from ..exceptions import OLTConnectionError, OLTCommandError
+
+logger = logging.getLogger(__name__)
+
+class HuaweiOLTAdapter(OLTAdapter):
+    """
+    Adapter for Huawei OLT devices.
+    
+    This adapter implements the abstract OLT adapter interface for Huawei OLT equipment.
+    It supports various Huawei OLT models by using the appropriate command templates.
+    """
+    
+    def __init__(self, host: str, username: str, password: str, port: int = 22,
+                 model: str = "MA5800", default_frame: str = "0", default_slot: str = "0"):
+        """
+        Initialize a new Huawei OLT adapter.
+        
+        Args:
+            host: Hostname or IP address of the OLT
+            username: SSH username for OLT access
+            password: SSH password for OLT access
+            port: SSH port number (default: 22)
+            model: OLT model name (default: "MA5800")
+            default_frame: Default frame ID for operations (default: "0")
+            default_slot: Default slot ID for operations (default: "0")
+        """
+        self.host = host
+        self.username = username
+        self.password = password
+        self.port = port
+        self.model = model
+        self.default_frame = default_frame
+        self.default_slot = default_slot
+        
+        self.ssh_client = SSHClient(host, username, password, port)
+        self.parser = HuaweiParser()
+        self.command_templates = HuaweiCommandTemplates
+    
+    def connect(self) -> bool:
+        """
+        Establish connection to the Huawei OLT device.
+        
+        Returns:
+            bool: True if connection is successful, False otherwise.
+        """
+        try:
+            logger.info(f"Connecting to Huawei OLT {self.host}")
+            result = self.ssh_client.connect()
+            if result:
+                # Disable paging to get full command output
+                self.ssh_client.send_command("screen-length 0 temporary")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to connect to Huawei OLT {self.host}: {str(e)}")
+            return False
+    
+    def disconnect(self) -> None:
+        """Close connection to the Huawei OLT device."""
+        logger.info(f"Disconnecting from Huawei OLT {self.host}")
+        self.ssh_client.disconnect()
+    
+    def is_connected(self) -> bool:
+        """
+        Check if currently connected to the Huawei OLT device.
+        
+        Returns:
+            bool: True if connected, False otherwise.
+        """
+        return self.ssh_client.is_connected()
+    
+    def _send_command(self, command: str) -> str:
+        """
+        Send a command to the OLT and return the output.
+        
+        Args:
+            command: The command to send
+            
+        Returns:
+            str: Command output
+            
+        Raises:
+            OLTConnectionError: If not connected to the OLT
+            OLTCommandError: If the command fails
+        """
+        if not self.is_connected():
+            if not self.connect():
+                raise OLTConnectionError(f"Failed to connect to Huawei OLT {self.host}")
+        
+        try:
+            return self.ssh_client.send_command(command)
+        except Exception as e:
+            raise OLTCommandError(f"Command failed on Huawei OLT {self.host}: {str(e)}")
+    
+    def _get_frame_slot(self, frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> Tuple[str, str]:
+        """
+        Get frame and slot IDs, using defaults if not provided.
+        
+        Args:
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Tuple[str, str]: Frame ID and slot ID
+        """
+        return frame_id or self.default_frame, slot_id or self.default_slot
+    
+    def get_system_info(self) -> Dict[str, Any]:
+        """
+        Get system information from the OLT.
+        
+        Returns:
+            Dict: Information about the OLT including model, version, etc.
+        """
+        command = self.command_templates.get_command(self.model, "show_system_info")
+        output = self._send_command(command)
+        
+        # Parse the output into a structured format
+        system_info = self.parser.extract_key_value_pairs(output)
+        
+        # Get version information as well
+        command = self.command_templates.get_command(self.model, "show_version")
+        version_output = self._send_command(command)
+        version_info = self.parser.extract_key_value_pairs(version_output)
+        
+        # Merge the information
+        system_info.update(version_info)
+        
+        return system_info
+    
+    def get_olts(self) -> List[Dict[str, Any]]:
+        """
+        Get a list of all OLTs in the system.
+        
+        For Huawei OLTs, this returns information about the current OLT.
+        
+        Returns:
+            List[Dict]: List containing OLT information.
+        """
+        # Get system information for the current OLT
+        system_info = self.get_system_info()
+        
+        # Format as a list with a single item
+        return [{
+            'id': '1',  # Use a default ID since we're connected to a single OLT
+            'name': system_info.get('System Name', 'Unknown'),
+            'model': system_info.get('Product Version', self.model),
+            'ip_address': self.host,
+            'status': 'online',  # We're connected, so it's online
+            'version': system_info.get('Software Version', 'Unknown')
+        }]
+    
+    def get_onts(self, frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get list of all ONTs managed by this OLT.
+        
+        Args:
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            List[Dict]: List of ONT information dictionaries.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Construct and send the command
+        command = self.command_templates.get_command(
+            self.model, "show_ont_info", frame=frame, slot=slot
+        )
+        output = self._send_command(command)
+        
+        # Parse the response
+        return self.parser.parse_ont_list(output)
+    
+    def get_ont_details(self, ont_id: str, frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific ONT.
+        
+        Args:
+            ont_id: The ID of the ONT to query
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Dict: Detailed ONT information.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Get basic ONT information
+        command = self.command_templates.get_command(
+            self.model, "show_ont_detail", frame=frame, slot=slot, ont_id=ont_id
+        )
+        output = self._send_command(command)
+        ont_info = self.parser.extract_key_value_pairs(output)
+        
+        # Get ONT status
+        command = self.command_templates.get_command(
+            self.model, "show_ont_status", frame=frame, slot=slot, ont_id=ont_id
+        )
+        status_output = self._send_command(command)
+        status_info = self.parser.parse_ont_status(status_output)
+        
+        # Get ONT version
+        command = self.command_templates.get_command(
+            self.model, "show_ont_version", frame=frame, slot=slot, ont_id=ont_id
+        )
+        version_output = self._send_command(command)
+        version_info = self.parser.extract_key_value_pairs(version_output)
+        
+        # Merge all information
+        result = {
+            'id': ont_id,
+            'frame': frame,
+            'slot': slot,
+            **ont_info,
+            'status': status_info,
+            'version': version_info
+        }
+        
+        return result
+    
+    def provision_ont(self, serial_number: str, frame_id: Optional[str] = None, 
+                      slot_id: Optional[str] = None, name: Optional[str] = None, 
+                      description: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Provision a new ONT with the given serial number.
+        
+        Args:
+            serial_number: The ONT's serial number
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            name: Optional name for the ONT
+            description: Optional description for the ONT
+            
+        Returns:
+            Dict: Information about the newly provisioned ONT including its ID.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Construct the description parameter
+        desc_param = description or name or ""
+        
+        # Send the command to add the ONT
+        command = self.command_templates.get_command(
+            self.model, "add_ont", 
+            frame=frame, 
+            slot=slot, 
+            serial_number=serial_number,
+            desc_param=desc_param
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        if "ONTID :" in output:
+            # Extract the ONT ID from the response
+            import re
+            ont_id_match = re.search(r"ONTID\s*:\s*(\d+)", output)
+            if ont_id_match:
+                ont_id = ont_id_match.group(1)
+                return {
+                    'id': ont_id,
+                    'serial_number': serial_number,
+                    'frame': frame,
+                    'slot': slot,
+                    'description': desc_param
+                }
+        
+        # If we get here, the command failed or we couldn't parse the ONT ID
+        raise OLTCommandError(f"Failed to provision ONT {serial_number} on Huawei OLT {self.host}")
+    
+    def provision_multiple_onts(self, serial_numbers: List[str], frame_id: Optional[str] = None,
+                               slot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Provision multiple ONTs in a batch operation.
+        
+        Args:
+            serial_numbers: List of ONT serial numbers to provision
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            List[Dict]: Information about each provisioned ONT.
+        """
+        results = []
+        for sn in serial_numbers:
+            try:
+                ont = self.provision_ont(sn, frame_id, slot_id)
+                results.append(ont)
+            except Exception as e:
+                logger.error(f"Failed to provision ONT {sn}: {str(e)}")
+                # Continue with the next ONT
+        
+        return results
+    
+    def deprovision_ont(self, ont_id: str, frame_id: Optional[str] = None, 
+                        slot_id: Optional[str] = None) -> bool:
+        """
+        Deprovision an existing ONT.
+        
+        Args:
+            ont_id: The ID of the ONT to deprovision
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to delete the ONT
+        command = self.command_templates.get_command(
+            self.model, "delete_ont", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def configure_ont_interface(self, ont_id: str, interface_id: str, vlan_mode: str, 
+                              vlan_id: Optional[int] = None, frame_id: Optional[str] = None, 
+                              slot_id: Optional[str] = None) -> bool:
+        """
+        Configure VLAN settings on an ONT interface.
+        
+        Args:
+            ont_id: The ONT ID
+            interface_id: The interface identifier
+            vlan_mode: VLAN mode (e.g., 'access', 'trunk')
+            vlan_id: Optional VLAN ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to configure VLAN
+        command = self.command_templates.get_command(
+            self.model, "config_ont_vlan", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id,
+            port_id=interface_id,
+            vlan_mode=vlan_mode.lower(),
+            vlan_id=vlan_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def set_ont_ip_configuration(self, ont_id: str, ip_address: Optional[str] = None,
+                              subnet_mask: Optional[str] = None, gateway: Optional[str] = None,
+                              dhcp_enabled: Optional[bool] = None, pppoe_enabled: Optional[bool] = None,
+                              frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> bool:
+        """
+        Configure IP settings for an ONT.
+        
+        Args:
+            ont_id: The ONT ID
+            ip_address: Optional static IP address
+            subnet_mask: Optional subnet mask
+            gateway: Optional default gateway
+            dhcp_enabled: Whether DHCP is enabled
+            pppoe_enabled: Whether PPPoE is enabled
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Multiple commands may be needed based on the parameters
+        commands = []
+        
+        # Configure DHCP if specified
+        if dhcp_enabled is not None:
+            dhcp_command = f"ont ipconfig {frame} {slot} {ont_id} dhcp-enable {1 if dhcp_enabled else 0}"
+            commands.append(dhcp_command)
+        
+        # Configure static IP if provided
+        if ip_address and subnet_mask and gateway:
+            static_command = f"ont ipconfig {frame} {slot} {ont_id} static-ip {ip_address} {subnet_mask} {gateway}"
+            commands.append(static_command)
+        
+        # Configure PPPoE if specified
+        if pppoe_enabled is not None:
+            pppoe_command = f"ont ipconfig {frame} {slot} {ont_id} pppoe-enable {1 if pppoe_enabled else 0}"
+            commands.append(pppoe_command)
+        
+        # Execute all commands
+        success = True
+        for cmd in commands:
+            output = self._send_command(cmd)
+            if "Success" not in output and "successfully" not in output.lower():
+                success = False
+        
+        return success
+    
+    def enable_ont_port(self, ont_id: str, interface_id: str, enabled: bool,
+                      frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> bool:
+        """
+        Enable or disable an ONT interface port.
+        
+        Args:
+            ont_id: The ONT ID
+            interface_id: The interface identifier
+            enabled: True to enable, False to disable
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to enable/disable the port
+        command = self.command_templates.get_command(
+            self.model, "config_ont_port", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id,
+            port_id=interface_id,
+            status="enable" if enabled else "disable"
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def reboot_ont(self, ont_id: str, frame_id: Optional[str] = None, 
+                 slot_id: Optional[str] = None) -> bool:
+        """
+        Reboot an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to reboot the ONT
+        command = self.command_templates.get_command(
+            self.model, "reboot_ont", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def restore_ont_factory_settings(self, ont_id: str, frame_id: Optional[str] = None, 
+                                   slot_id: Optional[str] = None) -> bool:
+        """
+        Restore an ONT device to factory settings.
+        
+        Args:
+            ont_id: The ONT ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to reset the ONT
+        command = self.command_templates.get_command(
+            self.model, "reset_ont", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def get_ont_status(self, ont_id: str, frame_id: Optional[str] = None, 
+                     slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get the current status of an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Dict: Status information about the ONT.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to get ONT status
+        command = self.command_templates.get_command(
+            self.model, "show_ont_status", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Parse the status output
+        return self.parser.parse_ont_status(output)
+    
+    def get_ont_performance_metrics(self, ont_id: str, metric_type: str,
+                                 start_time: Optional[int] = None,
+                                 end_time: Optional[int] = None,
+                                 frame_id: Optional[str] = None, 
+                                 slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get performance metrics for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            metric_type: Type of metrics to retrieve (e.g., 'traffic', 'cpu', 'memory')
+            start_time: Optional start time for metrics (Unix timestamp)
+            end_time: Optional end time for metrics (Unix timestamp)
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Dict: Performance metrics data.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Map metric type to command
+        if metric_type.lower() == 'traffic':
+            command_name = "show_ont_traffic"
+        else:
+            raise ValueError(f"Unsupported metric type: {metric_type}")
+        
+        # Send the command to get metrics
+        command = self.command_templates.get_command(
+            self.model, command_name, 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Parse the metrics output
+        # Currently just returning raw key-value pairs; could be extended for different metric types
+        return self.parser.extract_key_value_pairs(output)
+    
+    def get_ont_signal_history(self, ont_id: str, start_time: Optional[int] = None,
+                            end_time: Optional[int] = None,
+                            frame_id: Optional[str] = None, 
+                            slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get signal history for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            start_time: Optional start time (Unix timestamp)
+            end_time: Optional end time (Unix timestamp)
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Dict: Signal history data.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to get optical information
+        command = self.command_templates.get_command(
+            self.model, "show_ont_optical", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Parse the signal history
+        return self.parser.parse_signal_history(output)
+    
+    def get_ont_alerts(self, ont_id: str, start_time: Optional[int] = None,
+                     end_time: Optional[int] = None,
+                     frame_id: Optional[str] = None, 
+                     slot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get alerts for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            start_time: Optional start time (Unix timestamp)
+            end_time: Optional end time (Unix timestamp)
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            List[Dict]: List of alert information.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Send the command to get ONT alarms
+        command = self.command_templates.get_command(
+            self.model, "show_ont_alarm", 
+            frame=frame, 
+            slot=slot, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Parse the alerts
+        return self.parser.parse_alerts(output)
+    
+    def configure_alerts(self, ont_id: str, alert_type: str, threshold: float,
+                       notification_methods: List[str],
+                       frame_id: Optional[str] = None, 
+                       slot_id: Optional[str] = None) -> bool:
+        """
+        Configure alerts for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            alert_type: Type of alert to configure
+            threshold: Threshold value for the alert
+            notification_methods: List of notification methods
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Currently, Huawei OLTs handle alerts differently based on the type
+        # This is a simplified implementation
+        if alert_type.lower() == 'signal':
+            cmd = f"ont alarm-profile {frame} {slot} {ont_id} signal-threshold {threshold}"
+        elif alert_type.lower() == 'power':
+            cmd = f"ont alarm-profile {frame} {slot} {ont_id} power-threshold {threshold}"
+        else:
+            raise ValueError(f"Unsupported alert type: {alert_type}")
+        
+        # Send the command
+        output = self._send_command(cmd)
+        
+        # Check if successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def get_ont_location(self, ont_id: str, frame_id: Optional[str] = None, 
+                       slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get the GPS location of an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            Dict: Location information.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # For Huawei OLTs, location might be stored in the description or in a custom database
+        # Here we'll assume it's in a custom field accessible via a specific command
+        cmd = f"display ont location {frame} {slot} {ont_id}"
+        output = self._send_command(cmd)
+        
+        # Parse location information
+        location = {}
+        for line in output.splitlines():
+            if "Latitude" in line:
+                parts = line.split(":")
+                if len(parts) > 1:
+                    location["latitude"] = parts[1].strip()
+            elif "Longitude" in line:
+                parts = line.split(":")
+                if len(parts) > 1:
+                    location["longitude"] = parts[1].strip()
+            elif "Description" in line:
+                parts = line.split(":")
+                if len(parts) > 1:
+                    location["description"] = parts[1].strip()
+        
+        return location
+    
+    def update_ont_location(self, ont_id: str, latitude: float, longitude: float,
+                          description: Optional[str] = None,
+                          frame_id: Optional[str] = None, 
+                          slot_id: Optional[str] = None) -> bool:
+        """
+        Update the GPS location of an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            latitude: Latitude coordinate
+            longitude: Longitude coordinate
+            description: Optional location description
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # For Huawei OLTs, location might be set with a specific command
+        cmd = f"ont location {frame} {slot} {ont_id} latitude {latitude} longitude {longitude}"
+        if description:
+            cmd += f" description \"{description}\""
+            
+        output = self._send_command(cmd)
+        
+        # Check if successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def set_ont_speed_limit(self, ont_id: str, download_limit: Optional[int] = None,
+                          upload_limit: Optional[int] = None,
+                          frame_id: Optional[str] = None, 
+                          slot_id: Optional[str] = None) -> bool:
+        """
+        Set speed limits for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            download_limit: Optional download speed limit in Kbps
+            upload_limit: Optional upload speed limit in Kbps
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # For Huawei OLTs, speed limits are typically set by assigning traffic profiles
+        # This would normally involve creating/selecting a profile and then applying it
+        # Here's a simplified version that directly sets the limits
+        commands = []
+        
+        if download_limit is not None:
+            commands.append(f"ont traffic-limit {frame} {slot} {ont_id} downstream {download_limit}")
+        
+        if upload_limit is not None:
+            commands.append(f"ont traffic-limit {frame} {slot} {ont_id} upstream {upload_limit}")
+        
+        # Execute all commands
+        success = True
+        for cmd in commands:
+            output = self._send_command(cmd)
+            if "Success" not in output and "successfully" not in output.lower():
+                success = False
+        
+        return success
+    
+    def configure_ont_dhcp(self, ont_id: str, enabled: bool, lease_time: Optional[int] = None,
+                         dns_servers: Optional[List[str]] = None,
+                         frame_id: Optional[str] = None, 
+                         slot_id: Optional[str] = None) -> bool:
+        """
+        Configure DHCP settings for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            enabled: Whether DHCP is enabled
+            lease_time: Optional DHCP lease time in seconds
+            dns_servers: Optional list of DNS server IP addresses
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Enable/disable DHCP
+        cmd = f"ont dhcp {frame} {slot} {ont_id} {'enable' if enabled else 'disable'}"
+        
+        # Add lease time if specified
+        if lease_time:
+            cmd += f" lease {lease_time}"
+        
+        # Add DNS servers if specified
+        if dns_servers:
+            cmd += f" dns {' '.join(dns_servers)}"
+        
+        output = self._send_command(cmd)
+        
+        # Check if successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def configure_ont_vlan(self, ont_id: str, interface_id: str, vlan_mode: str,
+                         vlan_id: Optional[int] = None,
+                         frame_id: Optional[str] = None, 
+                         slot_id: Optional[str] = None) -> bool:
+        """
+        Configure VLAN settings on an ONT interface.
+        
+        Args:
+            ont_id: The ONT ID
+            interface_id: The interface identifier
+            vlan_mode: VLAN mode (e.g., 'access', 'trunk')
+            vlan_id: Optional VLAN ID
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        # This is effectively the same as configure_ont_interface
+        return self.configure_ont_interface(
+            ont_id=ont_id,
+            interface_id=interface_id,
+            vlan_mode=vlan_mode,
+            vlan_id=vlan_id,
+            frame_id=frame_id,
+            slot_id=slot_id
+        )
+    
+    def configure_ont_triple_play(self, ont_id: str, ip_enabled: bool, iptv_enabled: bool,
+                               voice_enabled: bool,
+                               frame_id: Optional[str] = None, 
+                               slot_id: Optional[str] = None) -> bool:
+        """
+        Configure Triple Play services for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            ip_enabled: Whether IP service is enabled
+            iptv_enabled: Whether IPTV service is enabled
+            voice_enabled: Whether voice service is enabled
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Configure each service
+        commands = []
+        
+        # IP service
+        commands.append(f"ont service ip {frame} {slot} {ont_id} {'enable' if ip_enabled else 'disable'}")
+        
+        # IPTV service
+        commands.append(f"ont service iptv {frame} {slot} {ont_id} {'enable' if iptv_enabled else 'disable'}")
+        
+        # Voice service
+        commands.append(f"ont service voice {frame} {slot} {ont_id} {'enable' if voice_enabled else 'disable'}")
+        
+        # Execute all commands
+        success = True
+        for cmd in commands:
+            output = self._send_command(cmd)
+            if "Success" not in output and "successfully" not in output.lower():
+                success = False
+        
+        return success
+    
+    def configure_ont_routing_mode(self, ont_id: str, routing_mode: str,
+                                frame_id: Optional[str] = None, 
+                                slot_id: Optional[str] = None) -> bool:
+        """
+        Configure routing mode for an ONT device.
+        
+        Args:
+            ont_id: The ONT ID
+            routing_mode: Routing mode (e.g., 'routing', 'bridging')
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Validate routing mode
+        if routing_mode.lower() not in ['routing', 'bridging']:
+            raise ValueError(f"Invalid routing mode: {routing_mode}. Must be 'routing' or 'bridging'.")
+        
+        # Set the routing mode
+        cmd = f"ont mode {routing_mode.lower()} {frame} {slot} {ont_id}"
+        output = self._send_command(cmd)
+        
+        # Check if successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def configure_ont_tr069(self, ont_id: str, acs_url: str, 
+                          periodic_inform_interval: int,
+                          connection_request_username: str,
+                          connection_request_password: str,
+                          frame_id: Optional[str] = None, 
+                          slot_id: Optional[str] = None) -> bool:
+        """
+        Configure TR-069 settings on an ONT.
+        
+        Args:
+            ont_id: The ONT ID
+            acs_url: The URL of the TR-069 ACS server
+            periodic_inform_interval: Interval in seconds for periodic informs
+            connection_request_username: Username for connection requests
+            connection_request_password: Password for connection requests
+            frame_id: Optional frame ID
+            slot_id: Optional slot ID
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        frame, slot = self._get_frame_slot(frame_id, slot_id)
+        
+        # Configure TR-069 settings one by one
+        commands = [
+            f"ont tr069-config {frame} {slot} {ont_id} acs-url {acs_url}",
+            f"ont tr069-config {frame} {slot} {ont_id} periodic-inform-interval {periodic_inform_interval}",
+            f"ont tr069-config {frame} {slot} {ont_id} connection-request-username {connection_request_username}",
+            f"ont tr069-config {frame} {slot} {ont_id} connection-request-password {connection_request_password}"
+        ]
+        
+        # Execute all commands
+        success = True
+        for cmd in commands:
+            output = self._send_command(cmd)
+            if "Success" not in output and "successfully" not in output.lower():
+                success = False
+        
+        # Enable TR-069
+        enable_cmd = f"ont tr069-config {frame} {slot} {ont_id} enable"
+        output = self._send_command(enable_cmd)
+        if "Success" not in output and "successfully" not in output.lower():
+            success = False
+        
+        return success
+    
+    def execute_custom_command(self, command: str) -> str:
+        """
+        Execute a custom command on the OLT.
+        
+        This method should be used with caution as it allows direct command execution.
+        
+        Args:
+            command: The command to execute
+            
+        Returns:
+            str: Command output.
+        """
+        # Log the custom command for security auditing
+        logger.warning(f"Executing custom command on Huawei OLT {self.host}: {command}")
+        
+        # Send the command
+        return self._send_command(command)

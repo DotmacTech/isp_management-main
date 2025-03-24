@@ -1,0 +1,20 @@
+"""
+Integration Management Module for the ISP Management Platform.
+
+This module provides a centralized system for managing integrations with
+third-party services and external systems, including secure credential storage,
+webhook handling, and monitoring.
+"""
+
+from fastapi import APIRouter
+
+from .api.endpoints import router as integration_router
+
+# Create a router for the Integration Management Module
+router = APIRouter(prefix="/integration-management", tags=["Integration Management"])
+
+# Include the integration router
+router.include_router(integration_router)
+
+# Export the router for inclusion in the main application
+__all__ = ["router"]

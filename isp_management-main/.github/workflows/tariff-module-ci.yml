@@ -1,0 +1,212 @@
+name: Tariff Enforcement Module CI
+
+on:
+  push:
+    branches: [ main, develop, 'feature/tariff-*', 'bugfix/tariff-*', 'hotfix/tariff-*', 'release/tariff-*' ]
+    paths:
+      - 'modules/tariff/**'
+      - 'tests/modules/tariff/**'
+      - 'alembic/versions/*tariff*.py'
+      - '.github/workflows/tariff-module-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'modules/tariff/**'
+      - 'tests/modules/tariff/**'
+      - 'alembic/versions/*tariff*.py'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: isp_management_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Lint with flake8
+      run: |
+        flake8 modules/tariff/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 modules/tariff/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Type check with mypy
+      run: |
+        mypy modules/tariff/
+    
+    - name: Run unit tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/isp_management_test
+        REDIS_URL: redis://localhost:6379/0
+        TESTING: "true"
+        SECRET_KEY: "test_secret_key_for_testing_only"
+        RADIUS_API_URL: "http://localhost:8000/radius"
+        RADIUS_API_KEY: "test_api_key"
+      run: |
+        pytest tests/modules/tariff/ -v
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/isp_management_test
+        REDIS_URL: redis://localhost:6379/0
+        TESTING: "true"
+        SECRET_KEY: "test_secret_key_for_testing_only"
+        RADIUS_API_URL: "http://localhost:8000/radius"
+        RADIUS_API_KEY: "test_api_key"
+      run: |
+        pytest tests/integration/tariff/ -v
+    
+    - name: Generate test coverage report
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/isp_management_test
+        REDIS_URL: redis://localhost:6379/0
+        TESTING: "true"
+        SECRET_KEY: "test_secret_key_for_testing_only"
+        RADIUS_API_URL: "http://localhost:8000/radius"
+        RADIUS_API_KEY: "test_api_key"
+      run: |
+        pytest --cov=modules/tariff/ tests/modules/tariff/ tests/integration/tariff/ --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: tariff-module
+        fail_ci_if_error: false
+        verbose: true
+
+  build-and-push:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ghcr.io/${{ github.repository }}/tariff-module
+        tags: |
+          type=ref,event=branch
+          type=semver,pattern={{version}}
+          type=sha,format=short
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./modules/tariff/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-to-staging:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.25.0'
+    
+    - name: Configure Kubernetes - Staging
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+      id: setcontext-staging
+    
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl set image deployment/tariff-module tariff-module=ghcr.io/${{ github.repository }}/tariff-module:sha-$(git rev-parse --short HEAD) -n isp-management
+        kubectl rollout status deployment/tariff-module -n isp-management --timeout=300s
+    
+    - name: Run database migrations
+      run: |
+        kubectl create job --from=cronjob/alembic-migration alembic-migration-manual-$(date +%s) -n isp-management
+        sleep 10
+        kubectl wait --for=condition=complete job/alembic-migration-manual-$(date +%s) -n isp-management --timeout=300s
+
+  deploy-to-production:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.25.0'
+    
+    - name: Configure Kubernetes - Production
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
+      id: setcontext-production
+    
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl set image deployment/tariff-module tariff-module=ghcr.io/${{ github.repository }}/tariff-module:sha-$(git rev-parse --short HEAD) -n isp-management
+        kubectl rollout status deployment/tariff-module -n isp-management --timeout=300s
+    
+    - name: Run database migrations
+      run: |
+        kubectl create job --from=cronjob/alembic-migration alembic-migration-manual-$(date +%s) -n isp-management
+        sleep 10
+        kubectl wait --for=condition=complete job/alembic-migration-manual-$(date +%s) -n isp-management --timeout=300s

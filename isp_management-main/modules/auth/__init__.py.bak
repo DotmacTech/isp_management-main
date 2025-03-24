@@ -1,0 +1,10 @@
+"""
+Authentication module for the ISP Management Platform.
+
+This module provides authentication and authorization services for the ISP Management Platform,
+including user management, JWT token generation and validation, and role-based access control.
+"""
+
+from .endpoints import router
+
+__all__ = ["router"]

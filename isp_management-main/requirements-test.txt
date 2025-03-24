@@ -1,0 +1,11 @@
+-r requirements.txt
+
+# Testing dependencies
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-mock==3.10.0
+pytest-asyncio==0.21.0
+httpx==0.24.1
+pyotp==2.9.0
+freezegun==1.2.2  # For time-based testing
+python-multipart==0.0.6

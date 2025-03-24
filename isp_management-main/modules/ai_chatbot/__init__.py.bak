@@ -1,0 +1,13 @@
+"""
+AI Chatbot Integration Module for ISP Management Platform.
+
+This module provides an API-integrated chatbot solution that allows support agents
+to interact with the platform using natural language queries, with processing
+handled by external AI services.
+"""
+
+from fastapi import APIRouter
+
+from .api.endpoints import router as chatbot_router
+
+__version__ = "0.1.0"

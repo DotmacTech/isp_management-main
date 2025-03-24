@@ -1,0 +1,46 @@
+"""
+Customer Management Module for ISP Management Platform.
+
+This module provides comprehensive management of customer data and profiles,
+including subscription states, email verification, communication preferences,
+and integration with the self-service portal.
+"""
+
+from isp_management.modules.customer.models import (
+    Customer, 
+    CustomerAddress, 
+    CustomerContact, 
+    SubscriptionState, 
+    CommunicationPreference,
+    CustomerDocument,
+    CustomerNote,
+    EmailVerification
+)
+from isp_management.modules.customer.services import CustomerService
+from isp_management.modules.customer.communication_service import CommunicationService
+from isp_management.modules.customer.verification_service import VerificationService
+from isp_management.modules.customer.document_service import CustomerDocumentService
+
+# We'll define the router variable but import it lazily to avoid circular imports
+customer_router = None
+
+__all__ = [
+    # Models
+    "Customer",
+    "CustomerAddress",
+    "CustomerContact",
+    "SubscriptionState",
+    "CommunicationPreference",
+    "CustomerDocument",
+    "CustomerNote",
+    "EmailVerification",
+    
+    # Services
+    "CustomerService",
+    "CommunicationService",
+    "VerificationService",
+    "CustomerDocumentService",
+    
+    # Router
+    "customer_router",
+]

@@ -1,0 +1,86 @@
+"""
+Monitoring Module for ISP Management Platform.
+
+This module provides comprehensive logging, monitoring, alerting, and dashboard functionality
+for tracking network performance, service availability, and customer usage statistics.
+
+Features:
+- Centralized logging with Elasticsearch integration
+- Real-time system metrics collection
+- Alert configuration and notification
+- Log retention management
+- Dashboard configuration and visualization
+- Middleware for automatic request/response logging
+- Background tasks for periodic monitoring operations
+- Network performance monitoring and alerting
+- Service availability tracking
+- Customer usage statistics
+"""
+
+from fastapi import FastAPI
+from typing import Optional, List
+
+from .api import router
+from .middleware import setup_request_logging
+from .models import NetworkNode, NodeType
+from .routers.network_nodes import router as network_nodes_router
+
+__version__ = "1.0.0"
+
+
+def init_app(
+    app: FastAPI,
+    service_name: str = "isp_management",
+    enable_request_logging: bool = True,
+    exclude_paths: Optional[List[str]] = None,
+    log_request_body: bool = False,
+    log_response_body: bool = False,
+    enable_network_monitoring: bool = True
+) -> None:
+    """
+    Initialize the monitoring module and register it with the main application.
+    
+    Args:
+        app: The FastAPI application
+        service_name: Name of the service for logging
+        enable_request_logging: Whether to enable automatic request logging
+        exclude_paths: List of path prefixes to exclude from logging
+        log_request_body: Whether to log request bodies
+        log_response_body: Whether to log response bodies
+        enable_network_monitoring: Whether to enable network performance monitoring
+    """
+    # Include the monitoring router
+    app.include_router(router)
+    
+    # Register network monitoring routes if enabled
+    if enable_network_monitoring:
+        app.include_router(network_nodes_router)
+    
+    # Set up request logging middleware if enabled
+    if enable_request_logging:
+        # Default paths to exclude from logging
+        default_exclude_paths = [
+            "/docs", 
+            "/redoc", 
+            "/openapi.json",
+            "/monitoring/health"  # Don't log health checks to avoid circular logging
+        ]
+        
+        # Combine with user-provided paths
+        if exclude_paths:
+            exclude_paths = default_exclude_paths + exclude_paths
+        else:
+            exclude_paths = default_exclude_paths
+            
+        # Set up the middleware
+        setup_request_logging(
+            app=app,
+            service_name=service_name,
+            exclude_paths=exclude_paths,
+            exclude_methods=["OPTIONS"],  # Don't log OPTIONS requests
+            log_request_body=log_request_body,
+            log_response_body=log_response_body
+        )
+
+    # Initialize Celery beat schedule for network monitoring tasks
+    from .config.celery_schedule import CELERY_BEAT_SCHEDULE

@@ -1,0 +1,51 @@
+feat(monitoring): Implement service availability monitoring
+
+# Why:
+# The ISP Management Platform needs a robust service monitoring system to track
+# the health and availability of critical services, detect outages, and manage
+# maintenance windows. This feature enhances system reliability and provides
+# better visibility into service performance.
+
+# What:
+# - Added service endpoint management for HTTP, HTTPS, TCP, UDP, DNS, and ICMP services
+# - Implemented automatic outage detection and tracking
+# - Created maintenance window scheduling and management
+# - Developed comprehensive Elasticsearch integration for data storage and visualization
+# - Added Kibana dashboards for service health monitoring
+# - Created unit tests for all components
+# - Added database migration scripts
+# - Updated CI/CD pipeline for the monitoring module
+
+# How:
+# - Created database models for service endpoints, statuses, outages, and maintenance windows
+# - Implemented collectors for gathering service availability metrics
+# - Added Celery tasks for scheduled service checks
+# - Developed RESTful API endpoints for managing service monitoring
+# - Integrated with Elasticsearch for efficient data storage and retrieval
+# - Created Kibana visualizations for monitoring dashboards
+
+# Testing:
+# - Added comprehensive unit tests for all components
+# - Created test fixtures and mocks for dependencies
+# - Implemented test script for easy test execution
+# - Added test coverage reporting
+
+# Related Issues:
+# - #123: Service monitoring requirements
+# - #124: Elasticsearch integration for monitoring data
+# - #125: Kibana dashboards for service health
+
+# Breaking Changes:
+# None
+
+# Deployment Notes:
+# - Run database migrations: `python scripts/run_migrations.py`
+# - Restart Celery workers: `systemctl restart isp-celery`
+# - Update Elasticsearch templates: `python scripts/update_es_templates.py`
+
+# Documentation:
+# - Added comprehensive documentation in docs/service_availability_monitoring.md
+# - Updated monitoring module README.md with new features
+# - Added API documentation with examples
+
+Jira issue: ISP-456

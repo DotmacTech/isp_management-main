@@ -1,0 +1,279 @@
+[
+  {
+    "id": "service-down-alert",
+    "name": "Service Down Alert",
+    "tags": ["monitoring", "service", "availability"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "index": "isp-service-status-*",
+      "timeField": "timestamp",
+      "aggType": "count",
+      "groupBy": "endpoint_id",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "thresholdComparator": ">=",
+      "threshold": [1],
+      "aggField": "status.keyword",
+      "termField": "status.keyword",
+      "termSize": 5,
+      "termsSortField": "_count",
+      "termsSortDirection": "desc",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "status.keyword": "DOWN"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "id": "email-action",
+        "group": "default",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "Service Down Alert: {{context.group}}",
+          "message": "Service {{context.group}} is DOWN.\n\nTime: {{context.date}}\nValue: {{context.value}}\n\nPlease check the service availability dashboard for more details."
+        }
+      },
+      {
+        "id": "slack-action",
+        "group": "default",
+        "params": {
+          "message": ":red_circle: *Service Down Alert*\n*Service:* {{context.group}}\n*Status:* DOWN\n*Time:* {{context.date}}\n*Value:* {{context.value}}\n\nPlease check the <https://kibana.example.com/app/dashboards#/view/service-availability-dashboard|service availability dashboard> for more details."
+        }
+      }
+    ]
+  },
+  {
+    "id": "service-response-time-alert",
+    "name": "Service Response Time Alert",
+    "tags": ["monitoring", "service", "performance"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "index": "isp-service-status-*",
+      "timeField": "timestamp",
+      "aggType": "avg",
+      "groupBy": "endpoint_id",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "thresholdComparator": ">=",
+      "threshold": [1000],
+      "aggField": "response_time",
+      "termField": "endpoint_id",
+      "termSize": 5,
+      "termsSortField": "response_time",
+      "termsSortDirection": "desc",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "status.keyword": "UP"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "id": "email-action",
+        "group": "default",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "Service Response Time Alert: {{context.group}}",
+          "message": "Service {{context.group}} has high response time.\n\nTime: {{context.date}}\nAverage Response Time: {{context.value}}ms\n\nPlease check the service availability dashboard for more details."
+        }
+      },
+      {
+        "id": "slack-action",
+        "group": "default",
+        "params": {
+          "message": ":warning: *Service Response Time Alert*\n*Service:* {{context.group}}\n*Average Response Time:* {{context.value}}ms\n*Time:* {{context.date}}\n\nPlease check the <https://kibana.example.com/app/dashboards#/view/service-availability-dashboard|service availability dashboard> for more details."
+        }
+      }
+    ]
+  },
+  {
+    "id": "multiple-services-down-alert",
+    "name": "Multiple Services Down Alert",
+    "tags": ["monitoring", "service", "availability", "critical"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "5m"
+    },
+    "params": {
+      "index": "isp-service-status-*",
+      "timeField": "timestamp",
+      "aggType": "cardinality",
+      "groupBy": "all",
+      "timeWindowSize": 5,
+      "timeWindowUnit": "m",
+      "thresholdComparator": ">=",
+      "threshold": [3],
+      "aggField": "endpoint_id",
+      "termField": "status.keyword",
+      "termSize": 5,
+      "termsSortField": "_count",
+      "termsSortDirection": "desc",
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "status.keyword": "DOWN"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "id": "email-action",
+        "group": "default",
+        "params": {
+          "to": ["noc@example.com", "management@example.com"],
+          "subject": "CRITICAL: Multiple Services Down Alert",
+          "message": "Multiple services are DOWN.\n\nTime: {{context.date}}\nNumber of affected services: {{context.value}}\n\nPlease check the service availability dashboard for more details."
+        }
+      },
+      {
+        "id": "slack-action",
+        "group": "default",
+        "params": {
+          "message": ":rotating_light: *CRITICAL: Multiple Services Down Alert*\n*Number of affected services:* {{context.value}}\n*Time:* {{context.date}}\n\nPlease check the <https://kibana.example.com/app/dashboards#/view/service-availability-dashboard|service availability dashboard> for more details."
+        }
+      }
+    ]
+  },
+  {
+    "id": "active-outages-alert",
+    "name": "Active Outages Alert",
+    "tags": ["monitoring", "service", "outage"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "15m"
+    },
+    "params": {
+      "index": "isp-service-outage-*",
+      "timeField": "start_time",
+      "aggType": "count",
+      "groupBy": "all",
+      "timeWindowSize": 1,
+      "timeWindowUnit": "h",
+      "thresholdComparator": ">=",
+      "threshold": [1],
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "resolved": false
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "id": "email-action",
+        "group": "default",
+        "params": {
+          "to": ["noc@example.com"],
+          "subject": "Active Outages Alert",
+          "message": "There are {{context.value}} active service outages.\n\nTime: {{context.date}}\n\nPlease check the service availability dashboard for more details."
+        }
+      },
+      {
+        "id": "slack-action",
+        "group": "default",
+        "params": {
+          "message": ":warning: *Active Outages Alert*\n*Number of active outages:* {{context.value}}\n*Time:* {{context.date}}\n\nPlease check the <https://kibana.example.com/app/dashboards#/view/service-availability-dashboard|service availability dashboard> for more details."
+        }
+      }
+    ]
+  },
+  {
+    "id": "long-duration-outage-alert",
+    "name": "Long Duration Outage Alert",
+    "tags": ["monitoring", "service", "outage", "critical"],
+    "alertTypeId": ".index-threshold",
+    "consumer": "alerts",
+    "schedule": {
+      "interval": "30m"
+    },
+    "params": {
+      "index": "isp-service-outage-*",
+      "timeField": "start_time",
+      "aggType": "count",
+      "groupBy": "endpoint_id",
+      "timeWindowSize": 1,
+      "timeWindowUnit": "h",
+      "thresholdComparator": ">=",
+      "threshold": [1],
+      "searchConfiguration": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "term": {
+                  "resolved": false
+                }
+              },
+              {
+                "range": {
+                  "start_time": {
+                    "lte": "now-2h"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "actions": [
+      {
+        "id": "email-action",
+        "group": "default",
+        "params": {
+          "to": ["noc@example.com", "management@example.com"],
+          "subject": "CRITICAL: Long Duration Outage for {{context.group}}",
+          "message": "Service {{context.group}} has been down for more than 2 hours.\n\nTime: {{context.date}}\n\nPlease check the service availability dashboard for more details."
+        }
+      },
+      {
+        "id": "slack-action",
+        "group": "default",
+        "params": {
+          "message": ":rotating_light: *CRITICAL: Long Duration Outage*\n*Service:* {{context.group}}\n*Duration:* More than 2 hours\n*Time:* {{context.date}}\n\nPlease check the <https://kibana.example.com/app/dashboards#/view/service-availability-dashboard|service availability dashboard> for more details."
+        }
+      }
+    ]
+  }
+]

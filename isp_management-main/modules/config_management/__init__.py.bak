@@ -1,0 +1,9 @@
+"""
+Configuration Management Module for ISP Management Platform.
+
+This module provides centralized management of all system-wide configurations,
+with features for dynamic updates, version control, environment-specific settings,
+and secure storage of sensitive configuration data.
+"""
+
+__version__ = "0.1.0"

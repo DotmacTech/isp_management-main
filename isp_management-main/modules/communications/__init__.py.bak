@@ -1,0 +1,11 @@
+"""
+Communications module for the ISP Management Platform.
+
+This module provides functionality for handling various types of communications
+between the ISP and its customers, including messages, notifications, announcements,
+and support tickets.
+"""
+
+from isp_management.modules.communications.router import router
+
+__all__ = ["router"]

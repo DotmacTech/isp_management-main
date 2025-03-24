@@ -1,0 +1,280 @@
+<<<<<<< HEAD
+# ISP Management Platform Docker Compose Configuration
+
+# Define all services
+services:
+  # Main application service
+  app:
+    build: .
+    container_name: isp_management_app
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+    environment:
+      # Database Configuration
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=isp_management
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/isp_management
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Elasticsearch Configuration
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_ENABLED=true
+      
+      # JWT Configuration
+      - JWT_SECRET_KEY=development_secret_key_change_in_production
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      
+      # Monitoring Configuration
+      - MONITORING_LOGGING_LEVEL=INFO
+      - MONITORING_LOGGING_ELASTICSEARCH__ENABLED=true
+      - MONITORING_LOGGING_ELASTICSEARCH__HOSTS=http://elasticsearch:9200
+      - MONITORING_METRICS_COLLECTION_INTERVAL=60
+      - MONITORING_ALERTS_ENABLED=true
+      - MONITORING_HEALTH_CHECK_SERVICES={"api_gateway":"http://app:8000/health","database":"postgresql://postgres:5432","redis":"redis://redis:6379","elasticsearch":"http://elasticsearch:9200"}
+      
+      # Development Settings
+      - DEBUG=True
+      - ENVIRONMENT=development
+    volumes:
+      - ./:/app
+    networks:
+      - isp_network
+    command: >
+      sh -c "pip install email-validator &&
+             python -m alembic stamp consolidated_migrations &&
+             uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+
+  # PostgreSQL database service
+  postgres:
+    image: postgres:14
+    container_name: isp_management_postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=isp_management
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - isp_network
+
+  # Redis service for caching and message broker
+  redis:
+    image: redis:7
+    container_name: isp_management_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - isp_network
+
+  # Celery worker for background tasks
+  celery_worker:
+    build: .
+    container_name: isp_management_celery_worker
+    restart: always
+    depends_on:
+      - app
+      - postgres
+      - redis
+    environment:
+      # Database Configuration
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=isp_management
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/isp_management
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Elasticsearch Configuration
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_ENABLED=true
+      
+      # Monitoring Configuration
+      - MONITORING_LOGGING_LEVEL=INFO
+      - MONITORING_LOGGING_ELASTICSEARCH__ENABLED=true
+      - MONITORING_LOGGING_ELASTICSEARCH__HOSTS=http://elasticsearch:9200
+      - MONITORING_METRICS_COLLECTION_INTERVAL=60
+      - MONITORING_ALERTS_ENABLED=true
+      
+      # Development Settings
+      - DEBUG=True
+      - ENVIRONMENT=development
+    volumes:
+      - ./:/app
+    networks:
+      - isp_network
+    command: sh -c "pip install email-validator && celery -A modules.monitoring.celery_app worker --loglevel=info"
+
+  # Celery beat for scheduled tasks
+  celery_beat:
+    build: .
+    container_name: isp_management_celery_beat
+    restart: always
+    depends_on:
+      - app
+      - postgres
+      - redis
+      - celery_worker
+    environment:
+      # Database Configuration
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=isp_management
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/isp_management
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Elasticsearch Configuration
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_ENABLED=true
+      
+      # Monitoring Configuration
+      - MONITORING_LOGGING_LEVEL=INFO
+      - MONITORING_LOGGING_ELASTICSEARCH__ENABLED=true
+      - MONITORING_LOGGING_ELASTICSEARCH__HOSTS=http://elasticsearch:9200
+      - MONITORING_METRICS_COLLECTION_INTERVAL=60
+      - MONITORING_ALERTS_ENABLED=true
+      
+      # Development Settings
+      - DEBUG=True
+      - ENVIRONMENT=development
+    volumes:
+      - ./:/app
+    networks:
+      - isp_network
+    command: sh -c "pip install email-validator && celery -A modules.monitoring.celery_app beat --loglevel=info"
+
+  # Elasticsearch for logging and metrics
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: isp_management_elasticsearch
+    restart: always
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - isp_network
+
+  # Kibana for visualizing Elasticsearch data
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.9.0
+    container_name: isp_management_kibana
+    restart: always
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - isp_network
+
+  # Logstash for log processing
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.9.0
+    container_name: isp_management_logstash
+    restart: always
+    ports:
+      - "5044:5044"
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./docker/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./docker/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    networks:
+      - isp_network
+
+  # Filebeat for log shipping
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.9.0
+    container_name: isp_management_filebeat
+    restart: always
+    depends_on:
+      - elasticsearch
+      - logstash
+    volumes:
+      - ./docker/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/logs:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    user: root
+=======
+version: "3.8"
+
+services:
+  isp_management:
+    image: dev.local/isp_management_app:latest
+    container_name: isp_management
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    networks:
+      - isp_network
+
+  redis:
+    image: redis:latest
+    container_name: isp_redis
+    restart: always
+    ports:
+      - "6380:6379"
+>>>>>>> 7e0a2fe (Saving local changes before pulling)
+    networks:
+      - isp_network
+
+networks:
+  isp_network:
+    driver: bridge
+
+<<<<<<< HEAD
+volumes:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+=======
+>>>>>>> 7e0a2fe (Saving local changes before pulling)

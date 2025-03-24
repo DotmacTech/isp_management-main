@@ -1,0 +1,94 @@
+{
+  "index_patterns": ["isp-service-status-*", "isp-service-outage-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "isp-monitoring-policy",
+      "index.lifecycle.rollover_alias": "isp-monitoring"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "id": {
+          "type": "keyword"
+        },
+        "endpoint_id": {
+          "type": "keyword"
+        },
+        "endpoint_name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "endpoint_url": {
+          "type": "keyword"
+        },
+        "protocol": {
+          "type": "keyword"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "response_time": {
+          "type": "float"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "updated_at": {
+          "type": "date"
+        },
+        "start_time": {
+          "type": "date"
+        },
+        "end_time": {
+          "type": "date"
+        },
+        "duration_seconds": {
+          "type": "long"
+        },
+        "severity": {
+          "type": "keyword"
+        },
+        "description": {
+          "type": "text"
+        },
+        "resolution_notes": {
+          "type": "text"
+        },
+        "resolved": {
+          "type": "boolean"
+        },
+        "resolved_at": {
+          "type": "date"
+        },
+        "resolved_by": {
+          "type": "keyword"
+        },
+        "notification_sent": {
+          "type": "boolean"
+        },
+        "notification_channels": {
+          "type": "keyword"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "metadata": {
+          "type": "object",
+          "enabled": true
+        }
+      }
+    }
+  }
+}

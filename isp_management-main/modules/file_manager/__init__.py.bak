@@ -1,0 +1,9 @@
+"""
+File Manager & Document Handling Module.
+
+This module provides centralized management of documents and files across the ISP Management Platform.
+"""
+
+from .api.router import router as file_manager_router
+
+__all__ = ["file_manager_router"]

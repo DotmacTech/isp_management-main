@@ -1,0 +1,75 @@
+{
+  "index_patterns": ["isp-network-metrics-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "isp-metrics-policy",
+      "index.lifecycle.rollover_alias": "isp-network-metrics"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "node_id": {
+          "type": "keyword"
+        },
+        "node_name": {
+          "type": "keyword"
+        },
+        "node_type": {
+          "type": "keyword"
+        },
+        "ip_address": {
+          "type": "ip"
+        },
+        "location": {
+          "type": "keyword"
+        },
+        "metric_type": {
+          "type": "keyword"
+        },
+        "metric_name": {
+          "type": "keyword"
+        },
+        "value": {
+          "type": "float"
+        },
+        "unit": {
+          "type": "keyword"
+        },
+        "latency": {
+          "type": "float"
+        },
+        "packet_loss": {
+          "type": "float"
+        },
+        "bandwidth_utilization": {
+          "type": "float"
+        },
+        "connection_count": {
+          "type": "integer"
+        },
+        "interface": {
+          "type": "keyword"
+        },
+        "interface_errors": {
+          "type": "integer"
+        },
+        "interface_discards": {
+          "type": "integer"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "alert_level": {
+          "type": "keyword"
+        },
+        "threshold_value": {
+          "type": "float"
+        }
+      }
+    }
+  }
+}

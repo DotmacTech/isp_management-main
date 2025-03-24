@@ -1,0 +1,181 @@
+"""
+Ticket schemas for the CRM & Ticketing module.
+"""
+
+from typing import Optional, List, Dict, Any, Union
+from datetime import datetime
+from pydantic import BaseModel, Field, validator
+
+from .common import TicketStatusEnum, TicketPriorityEnum, TicketTypeEnum, ContactMethodEnum, SLAStatusEnum
+
+
+class TagBase(BaseModel):
+    """Base schema for ticket tags."""
+    name: str = Field(..., min_length=1, max_length=50, description="Tag name")
+    color: Optional[str] = Field(None, regex=r"^#[0-9A-Fa-f]{6}$", description="Hex color code")
+    description: Optional[str] = Field(None, max_length=255, description="Tag description")
+
+
+class TagCreate(TagBase):
+    """Schema for creating a new tag."""
+    pass
+
+
+class TagUpdate(BaseModel):
+    """Schema for updating an existing tag."""
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    color: Optional[str] = Field(None, regex=r"^#[0-9A-Fa-f]{6}$")
+    description: Optional[str] = Field(None, max_length=255)
+
+
+class TagResponse(TagBase):
+    """Schema for tag response."""
+    id: int
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+class TicketBase(BaseModel):
+    """Base schema for ticket data."""
+    subject: str = Field(..., min_length=1, max_length=255, description="Ticket subject")
+    description: str = Field(..., description="Detailed description of the issue")
+    status: TicketStatusEnum = Field(TicketStatusEnum.NEW, description="Current status of the ticket")
+    priority: TicketPriorityEnum = Field(TicketPriorityEnum.MEDIUM, description="Priority level of the ticket")
+    ticket_type: TicketTypeEnum = Field(..., description="Type of the ticket")
+    source: ContactMethodEnum = Field(..., description="Source of the ticket (how it was created)")
+    source_details: Optional[Dict[str, Any]] = Field(None, description="Additional details about the ticket source")
+    assigned_to: Optional[int] = Field(None, description="ID of the user assigned to the ticket")
+    assigned_team: Optional[int] = Field(None, description="ID of the team assigned to the ticket")
+    parent_ticket_id: Optional[int] = Field(None, description="ID of the parent ticket if this is a sub-ticket")
+    related_service_id: Optional[int] = Field(None, description="ID of the service related to this ticket")
+    custom_fields: Optional[Dict[str, Any]] = Field(None, description="Custom fields for the ticket")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the ticket")
+    tag_ids: Optional[List[int]] = Field(None, description="IDs of tags associated with the ticket")
+
+
+class TicketCreate(TicketBase):
+    """Schema for creating a new ticket."""
+    customer_id: int = Field(..., description="ID of the customer who created the ticket")
+    sla_id: Optional[int] = Field(None, description="ID of the SLA to apply to this ticket")
+
+
+class TicketUpdate(BaseModel):
+    """Schema for updating an existing ticket."""
+    subject: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    status: Optional[TicketStatusEnum] = None
+    priority: Optional[TicketPriorityEnum] = None
+    ticket_type: Optional[TicketTypeEnum] = None
+    source: Optional[ContactMethodEnum] = None
+    source_details: Optional[Dict[str, Any]] = None
+    assigned_to: Optional[int] = None
+    assigned_team: Optional[int] = None
+    parent_ticket_id: Optional[int] = None
+    related_service_id: Optional[int] = None
+    custom_fields: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    tag_ids: Optional[List[int]] = None
+    sla_id: Optional[int] = None
+
+
+class SLAInfo(BaseModel):
+    """Schema for SLA information in ticket responses."""
+    id: Optional[int] = None
+    first_response_target: Optional[datetime] = None
+    next_update_target: Optional[datetime] = None
+    resolution_target: Optional[datetime] = None
+    first_response_at: Optional[datetime] = None
+    last_update_at: Optional[datetime] = None
+    sla_breached: bool = False
+    first_response_status: Optional[SLAStatusEnum] = None
+    resolution_status: Optional[SLAStatusEnum] = None
+
+
+class TicketResponse(TicketBase):
+    """Schema for ticket response."""
+    id: int
+    ticket_number: str
+    customer_id: int
+    created_at: datetime
+    updated_at: datetime
+    resolved_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    sla: Optional[SLAInfo] = None
+    is_overdue: bool
+    tags: List[TagResponse] = []
+    
+    class Config:
+        orm_mode = True
+
+
+class TicketCommentBase(BaseModel):
+    """Base schema for ticket comments."""
+    content: str = Field(..., description="Comment content")
+    is_internal: bool = Field(False, description="Whether this comment is internal (not visible to customer)")
+    is_system: bool = Field(False, description="Whether this comment was generated by the system")
+
+
+class TicketCommentCreate(TicketCommentBase):
+    """Schema for creating a new ticket comment."""
+    ticket_id: int = Field(..., description="ID of the ticket this comment belongs to")
+
+
+class TicketCommentUpdate(BaseModel):
+    """Schema for updating an existing ticket comment."""
+    content: Optional[str] = None
+    is_internal: Optional[bool] = None
+
+
+class TicketCommentResponse(TicketCommentBase):
+    """Schema for ticket comment response."""
+    id: int
+    ticket_id: int
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+class TicketAttachmentBase(BaseModel):
+    """Base schema for ticket attachments."""
+    filename: str = Field(..., min_length=1, max_length=255, description="Original filename")
+    file_size: int = Field(..., gt=0, description="File size in bytes")
+    mime_type: str = Field(..., min_length=1, max_length=100, description="MIME type of the file")
+    is_internal: bool = Field(False, description="Whether this attachment is internal (not visible to customer)")
+
+
+class TicketAttachmentCreate(TicketAttachmentBase):
+    """Schema for creating a new ticket attachment."""
+    ticket_id: int = Field(..., description="ID of the ticket this attachment belongs to")
+    comment_id: Optional[int] = Field(None, description="ID of the comment this attachment belongs to")
+
+
+class TicketAttachmentResponse(TicketAttachmentBase):
+    """Schema for ticket attachment response."""
+    id: int
+    ticket_id: int
+    comment_id: Optional[int] = None
+    file_path: str
+    created_by: int
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+class TicketHistoryResponse(BaseModel):
+    """Schema for ticket history response."""
+    id: int
+    ticket_id: int
+    field_name: str
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    changed_by: int
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True

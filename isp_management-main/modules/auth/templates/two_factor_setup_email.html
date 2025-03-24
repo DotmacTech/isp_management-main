@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication Setup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #0056b3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .content {
+            padding: 20px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
+        }
+        .button {
+            display: inline-block;
+            background-color: #0056b3;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .security-note {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 20px 0;
+        }
+        .qr-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .backup-code {
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            letter-spacing: 2px;
+            margin: 10px 0;
+        }
+        h1 {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Two-Factor Authentication Setup</h1>
+    </div>
+    <div class="content">
+        <p>Hello {{ username }},</p>
+        
+        <p>You've successfully enabled two-factor authentication for your ISP Management Platform account. This adds an extra layer of security to your account.</p>
+        
+        <p>To complete the setup, please scan the QR code below with your authenticator app (such as Google Authenticator, Authy, or Microsoft Authenticator):</p>
+        
+        <div class="qr-container">
+            <img src="{{ qr_code }}" alt="QR Code for Two-Factor Authentication" style="max-width: 200px;">
+        </div>
+        
+        <p>If you can't scan the QR code, you can manually enter this secret key into your authenticator app:</p>
+        
+        <div class="backup-code">{{ secret_key }}</div>
+        
+        <div class="security-note">
+            <strong>Important Security Information:</strong>
+            <ul>
+                <li>Keep your secret key safe and secure.</li>
+                <li>You'll need your authenticator app to generate a verification code each time you log in.</li>
+                <li>If you lose access to your authenticator app, you'll need to use your recovery codes to regain access to your account.</li>
+            </ul>
+        </div>
+        
+        <p>Your recovery codes are listed below. Please save these in a secure location. Each code can only be used once.</p>
+        
+        <div class="backup-code">
+            {{ recovery_codes }}
+        </div>
+        
+        <p>If you didn't request this change or if you have any questions, please contact our support team immediately at <a href="mailto:support@example.com">support@example.com</a>.</p>
+        
+        <p>Best regards,<br>
+        The ISP Management Team</p>
+    </div>
+    <div class="footer">
+        <p>This email was sent to confirm the setup of two-factor authentication. If you did not request this change, please contact support immediately.</p>
+        <p>&copy; {{ current_year }} ISP Management Platform. All rights reserved.</p>
+    </div>
+</body>
+</html>

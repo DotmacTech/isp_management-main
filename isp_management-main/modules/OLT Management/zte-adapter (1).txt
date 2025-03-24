@@ -1,0 +1,405 @@
+"""
+ZTE OLT Adapter Module
+
+This module provides the implementation of the OLT adapter for ZTE OLT devices.
+It handles communication with ZTE OLT devices using Telnet and vendor-specific commands.
+"""
+
+import time
+import logging
+from typing import Optional, Dict, List, Any, Tuple
+
+from .base import OLTAdapter
+from .utils.telnet_client import TelnetClient
+from .utils.parsers import ZTEParser
+from ..models.command_templates import ZTECommandTemplates
+from ..exceptions import OLTConnectionError, OLTCommandError
+
+logger = logging.getLogger(__name__)
+
+class ZTEOLTAdapter(OLTAdapter):
+    """
+    Adapter for ZTE OLT devices.
+    
+    This adapter implements the abstract OLT adapter interface for ZTE OLT equipment.
+    It supports various ZTE OLT models by using the appropriate command templates.
+    """
+    
+    def __init__(self, host: str, username: str, password: str, port: int = 23,
+                 model: str = "C320", default_gpon_index: str = "1/1/1"):
+        """
+        Initialize a new ZTE OLT adapter.
+        
+        Args:
+            host: Hostname or IP address of the OLT
+            username: Telnet username for OLT access
+            password: Telnet password for OLT access
+            port: Telnet port number (default: 23)
+            model: OLT model name (default: "C320")
+            default_gpon_index: Default GPON interface index for operations (default: "1/1/1")
+        """
+        self.host = host
+        self.username = username
+        self.password = password
+        self.port = port
+        self.model = model
+        self.default_gpon_index = default_gpon_index
+        
+        self.telnet_client = TelnetClient(host, username, password, port)
+        self.parser = ZTEParser()
+        self.command_templates = ZTECommandTemplates
+    
+    def connect(self) -> bool:
+        """
+        Establish connection to the ZTE OLT device.
+        
+        Returns:
+            bool: True if connection is successful, False otherwise.
+        """
+        try:
+            logger.info(f"Connecting to ZTE OLT {self.host}")
+            result = self.telnet_client.connect()
+            if result:
+                # Disable paging to get full command output
+                self.telnet_client.send_command("terminal length 0")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to connect to ZTE OLT {self.host}: {str(e)}")
+            return False
+    
+    def disconnect(self) -> None:
+        """Close connection to the ZTE OLT device."""
+        logger.info(f"Disconnecting from ZTE OLT {self.host}")
+        self.telnet_client.disconnect()
+    
+    def is_connected(self) -> bool:
+        """
+        Check if currently connected to the ZTE OLT device.
+        
+        Returns:
+            bool: True if connected, False otherwise.
+        """
+        return self.telnet_client.is_connected()
+    
+    def _send_command(self, command: str) -> str:
+        """
+        Send a command to the OLT and return the output.
+        
+        Args:
+            command: The command to send
+            
+        Returns:
+            str: Command output
+            
+        Raises:
+            OLTConnectionError: If not connected to the OLT
+            OLTCommandError: If the command fails
+        """
+        if not self.is_connected():
+            if not self.connect():
+                raise OLTConnectionError(f"Failed to connect to ZTE OLT {self.host}")
+        
+        try:
+            return self.telnet_client.send_command(command)
+        except Exception as e:
+            raise OLTCommandError(f"Command failed on ZTE OLT {self.host}: {str(e)}")
+    
+    def _get_gpon_index(self, gpon_index: Optional[str] = None) -> str:
+        """
+        Get GPON interface index, using default if not provided.
+        
+        Args:
+            gpon_index: Optional GPON interface index
+            
+        Returns:
+            str: GPON interface index
+        """
+        return gpon_index or self.default_gpon_index
+    
+    def get_system_info(self) -> Dict[str, Any]:
+        """
+        Get system information from the OLT.
+        
+        Returns:
+            Dict: Information about the OLT including model, version, etc.
+        """
+        command = self.command_templates.get_command(self.model, "show_system_info")
+        output = self._send_command(command)
+        
+        # Parse the output into a structured format
+        system_info = self.parser.extract_key_value_pairs(output)
+        
+        # Get version information as well
+        command = self.command_templates.get_command(self.model, "show_version")
+        version_output = self._send_command(command)
+        version_info = self.parser.extract_key_value_pairs(version_output)
+        
+        # Merge the information
+        system_info.update(version_info)
+        
+        return system_info
+    
+    def get_olts(self) -> List[Dict[str, Any]]:
+        """
+        Get a list of all OLTs in the system.
+        
+        For ZTE OLTs, this returns information about the current OLT.
+        
+        Returns:
+            List[Dict]: List containing OLT information.
+        """
+        # Get system information for the current OLT
+        system_info = self.get_system_info()
+        
+        # Format as a list with a single item
+        return [{
+            'id': '1',  # Use a default ID since we're connected to a single OLT
+            'name': system_info.get('System Name', 'Unknown'),
+            'model': system_info.get('Product Model', self.model),
+            'ip_address': self.host,
+            'status': 'online',  # We're connected, so it's online
+            'version': system_info.get('Software Version', 'Unknown')
+        }]
+    
+    def get_onts(self, frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get list of all ONTs managed by this OLT.
+        
+        Args:
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            List[Dict]: List of ONT information dictionaries.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Construct and send the command
+        command = self.command_templates.get_command(
+            self.model, "show_ont_info", gpon_index=gpon_index
+        )
+        output = self._send_command(command)
+        
+        # Parse the response
+        return self.parser.parse_ont_list(output)
+    
+    def get_ont_details(self, ont_id: str, frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific ONT.
+        
+        Args:
+            ont_id: The ID of the ONT to query
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            Dict: Detailed ONT information.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Get basic ONT information
+        command = self.command_templates.get_command(
+            self.model, "show_ont_detail", gpon_index=gpon_index, ont_id=ont_id
+        )
+        output = self._send_command(command)
+        ont_info = self.parser.extract_key_value_pairs(output)
+        
+        # Get ONT status
+        command = self.command_templates.get_command(
+            self.model, "show_ont_status", gpon_index=gpon_index, ont_id=ont_id
+        )
+        status_output = self._send_command(command)
+        status_info = self.parser.parse_ont_status(status_output)
+        
+        # Get ONT version
+        command = self.command_templates.get_command(
+            self.model, "show_ont_version", gpon_index=gpon_index, ont_id=ont_id
+        )
+        version_output = self._send_command(command)
+        version_info = self.parser.extract_key_value_pairs(version_output)
+        
+        # Merge all information
+        result = {
+            'id': ont_id,
+            'gpon_index': gpon_index,
+            **ont_info,
+            'status': status_info,
+            'version': version_info
+        }
+        
+        return result
+    
+    def provision_ont(self, serial_number: str, frame_id: Optional[str] = None, 
+                      slot_id: Optional[str] = None, name: Optional[str] = None, 
+                      description: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Provision a new ONT with the given serial number.
+        
+        Args:
+            serial_number: The ONT's serial number
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            name: Optional name for the ONT
+            description: Optional description for the ONT
+            
+        Returns:
+            Dict: Information about the newly provisioned ONT including its ID.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Construct the description parameter
+        desc_param = description or name or ""
+        
+        # Send the command to add the ONT
+        command = self.command_templates.get_command(
+            self.model, "add_ont", 
+            gpon_index=gpon_index, 
+            serial_number=serial_number,
+            desc_param=desc_param
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        if "Success" in output or "successfully" in output.lower():
+            # Extract the ONT ID from the response
+            import re
+            ont_id_match = re.search(r"ONT ID\s*:\s*(\d+)", output)
+            if ont_id_match:
+                ont_id = ont_id_match.group(1)
+                return {
+                    'id': ont_id,
+                    'serial_number': serial_number,
+                    'gpon_index': gpon_index,
+                    'description': desc_param
+                }
+        
+        # If we get here, the command failed or we couldn't parse the ONT ID
+        raise OLTCommandError(f"Failed to provision ONT {serial_number} on ZTE OLT {self.host}")
+    
+    def provision_multiple_onts(self, serial_numbers: List[str], frame_id: Optional[str] = None,
+                               slot_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Provision multiple ONTs in a batch operation.
+        
+        Args:
+            serial_numbers: List of ONT serial numbers to provision
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            List[Dict]: Information about each provisioned ONT.
+        """
+        results = []
+        for sn in serial_numbers:
+            try:
+                ont = self.provision_ont(sn, frame_id, slot_id)
+                results.append(ont)
+            except Exception as e:
+                logger.error(f"Failed to provision ONT {sn}: {str(e)}")
+                # Continue with the next ONT
+        
+        return results
+    
+    def deprovision_ont(self, ont_id: str, frame_id: Optional[str] = None, 
+                        slot_id: Optional[str] = None) -> bool:
+        """
+        Deprovision an existing ONT.
+        
+        Args:
+            ont_id: The ID of the ONT to deprovision
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Send the command to delete the ONT
+        command = self.command_templates.get_command(
+            self.model, "delete_ont", 
+            gpon_index=gpon_index, 
+            ont_id=ont_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def configure_ont_interface(self, ont_id: str, interface_id: str, vlan_mode: str, 
+                              vlan_id: Optional[int] = None, frame_id: Optional[str] = None, 
+                              slot_id: Optional[str] = None) -> bool:
+        """
+        Configure VLAN settings on an ONT interface.
+        
+        Args:
+            ont_id: The ONT ID
+            interface_id: The interface identifier
+            vlan_mode: VLAN mode (e.g., 'access', 'trunk')
+            vlan_id: Optional VLAN ID
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Send the command to configure VLAN
+        command = self.command_templates.get_command(
+            self.model, "config_ont_vlan", 
+            gpon_index=gpon_index, 
+            ont_id=ont_id,
+            port_id=interface_id,
+            vlan_mode=vlan_mode.lower(),
+            vlan_id=vlan_id
+        )
+        output = self._send_command(command)
+        
+        # Check if the command was successful
+        return "Success" in output or "successfully" in output.lower()
+    
+    def set_ont_ip_configuration(self, ont_id: str, ip_address: Optional[str] = None,
+                              subnet_mask: Optional[str] = None, gateway: Optional[str] = None,
+                              dhcp_enabled: Optional[bool] = None, pppoe_enabled: Optional[bool] = None,
+                              frame_id: Optional[str] = None, slot_id: Optional[str] = None) -> bool:
+        """
+        Configure IP settings for an ONT.
+        
+        Args:
+            ont_id: The ONT ID
+            ip_address: Optional static IP address
+            subnet_mask: Optional subnet mask
+            gateway: Optional default gateway
+            dhcp_enabled: Whether DHCP is enabled
+            pppoe_enabled: Whether PPPoE is enabled
+            frame_id: Not used in ZTE, kept for interface compatibility
+            slot_id: Not used in ZTE, kept for interface compatibility
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        gpon_index = self._get_gpon_index()
+        
+        # Multiple commands may be needed based on the parameters
+        commands = []
+        
+        # Configure DHCP if specified
+        if dhcp_enabled is not None:
+            dhcp_command = f"set pon_onu ip {gpon_index} {ont_id} dhcp {'enable' if dhcp_enabled else 'disable'}"
+            commands.append(dhcp_command)
+        
+        # Configure static IP if provided
+        if ip_address and subnet_mask and gateway:
+            static_command = f"set pon_onu ip {gpon_index} {ont_id} static {ip_address} {subnet_mask} {gateway}"
+            commands.append(static_command)
+        
+        # Configure PPPoE if specified
+        if pppoe_enabled is not None:
+            pppoe_command = f"set pon_onu ip {gpon_index} {ont_id} pppoe {'enable' if pppoe_enabled else 'disable'}"
+            commands.append(pppoe_command)
+        
+        # Execute all commands
+        success = True
+        for cmd in commands:
+            output = self._sen

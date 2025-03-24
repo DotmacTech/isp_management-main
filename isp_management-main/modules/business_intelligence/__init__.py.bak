@@ -1,0 +1,28 @@
+"""
+Business Intelligence and Reporting module for the ISP Management Platform.
+
+This module provides functionality for generating, scheduling, and delivering
+business intelligence reports and analytics.
+"""
+
+from fastapi import APIRouter
+from isp_management.backend_core.celery_app import celery_app
+
+from .api.report_endpoints import router as report_router
+
+# Create module router
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["business-intelligence"]
+)
+
+# Include routers
+router.include_router(report_router)
+
+# Register Celery tasks
+from . import tasks
+
+# Define module metadata
+__version__ = "1.0.0"
+__author__ = "ISP Management Platform Team"
+__description__ = "Business Intelligence and Reporting module for the ISP Management Platform"

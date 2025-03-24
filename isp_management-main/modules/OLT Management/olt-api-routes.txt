@@ -1,0 +1,671 @@
+"""
+OLT Management API Routes
+
+This module provides FastAPI routes for managing OLTs and ONTs.
+"""
+
+import logging
+from typing import List, Dict, Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from pydantic import BaseModel, Field
+
+from ..olt.factory import OLTAdapterFactory
+from ..olt.connection_pool import OLTConnectionPool
+from ..olt.exceptions import (
+    OLTManagementError, OLTConnectionError, ONTProvisioningError,
+    ONTNotFoundError, UnsupportedVendorError
+)
+from .schemas import (
+    OLTInfo, ONTInfo, ONTProvisionRequest, ONTStatusInfo,
+    VLANConfig, IPConfig, TR069Config, SpeedLimitConfig
+)
+from .dependencies import get_olt_pool, get_authenticated_user
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/network", tags=["OLT Management"])
+
+
+@router.get("/vendors", response_model=List[str])
+async def get_supported_vendors():
+    """
+    Get a list of supported OLT vendors.
+    
+    Returns:
+        List[str]: List of vendor names
+    """
+    return OLTAdapterFactory.get_supported_vendors()
+
+
+@router.get("/olts", response_model=List[OLTInfo])
+async def get_olts(
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Get information about all OLTs.
+    
+    Args:
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        List[OLTInfo]: List of OLT information
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            olts = adapter.get_olts()
+            return olts
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/olts/{olt_id}/onts", response_model=List[ONTInfo])
+async def get_onts(
+    olt_id: str = Path(..., description="OLT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Get a list of ONTs for a specific OLT.
+    
+    Args:
+        olt_id: OLT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        List[ONTInfo]: List of ONT information
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            onts = adapter.get_onts(**kwargs)
+            return onts
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/olts/{olt_id}/onts/{ont_id}", response_model=ONTInfo)
+async def get_ont_details(
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Get detailed information about a specific ONT.
+    
+    Args:
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        ONTInfo: Detailed ONT information
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            ont_details = adapter.get_ont_details(ont_id, **kwargs)
+            return ont_details
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/olts/{olt_id}/onts", response_model=ONTInfo)
+async def provision_ont(
+    provision_request: ONTProvisionRequest,
+    olt_id: str = Path(..., description="OLT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Provision a new ONT.
+    
+    Args:
+        provision_request: ONT provisioning parameters
+        olt_id: OLT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        ONTInfo: Information about the newly provisioned ONT
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            ont = adapter.provision_ont(
+                serial_number=provision_request.serial_number,
+                name=provision_request.name,
+                description=provision_request.description,
+                **kwargs
+            )
+            return ont
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTProvisioningError as e:
+        logger.error(f"ONT provisioning error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/olts/{olt_id}/onts/{ont_id}/reboot", response_model=Dict[str, bool])
+async def reboot_ont(
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Reboot an ONT.
+    
+    Args:
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.reboot_ont(ont_id, **kwargs)
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/olts/{olt_id}/onts/{ont_id}", response_model=Dict[str, bool])
+async def deprovision_ont(
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Deprovision an ONT.
+    
+    Args:
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.deprovision_ont(ont_id, **kwargs)
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/olts/{olt_id}/onts/{ont_id}/status", response_model=ONTStatusInfo)
+async def get_ont_status(
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Get the current status of an ONT.
+    
+    Args:
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        ONTStatusInfo: ONT status information
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            status = adapter.get_ont_status(ont_id, **kwargs)
+            return status
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/olts/{olt_id}/onts/{ont_id}/vlan", response_model=Dict[str, bool])
+async def configure_ont_vlan(
+    vlan_config: VLANConfig,
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Configure VLAN settings for an ONT interface.
+    
+    Args:
+        vlan_config: VLAN configuration parameters
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.configure_ont_vlan(
+                ont_id=ont_id,
+                interface_id=vlan_config.interface_id,
+                vlan_mode=vlan_config.vlan_mode,
+                vlan_id=vlan_config.vlan_id,
+                **kwargs
+            )
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/olts/{olt_id}/onts/{ont_id}/ip", response_model=Dict[str, bool])
+async def configure_ont_ip(
+    ip_config: IPConfig,
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Configure IP settings for an ONT.
+    
+    Args:
+        ip_config: IP configuration parameters
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.set_ont_ip_configuration(
+                ont_id=ont_id,
+                ip_address=ip_config.ip_address,
+                subnet_mask=ip_config.subnet_mask,
+                gateway=ip_config.gateway,
+                dhcp_enabled=ip_config.dhcp_enabled,
+                pppoe_enabled=ip_config.pppoe_enabled,
+                **kwargs
+            )
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/olts/{olt_id}/onts/{ont_id}/tr069", response_model=Dict[str, bool])
+async def configure_ont_tr069(
+    tr069_config: TR069Config,
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Configure TR-069 settings for an ONT.
+    
+    Args:
+        tr069_config: TR-069 configuration parameters
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.configure_ont_tr069(
+                ont_id=ont_id,
+                acs_url=tr069_config.acs_url,
+                periodic_inform_interval=tr069_config.periodic_inform_interval,
+                connection_request_username=tr069_config.connection_request_username,
+                connection_request_password=tr069_config.connection_request_password,
+                **kwargs
+            )
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/olts/{olt_id}/onts/{ont_id}/speed", response_model=Dict[str, bool])
+async def configure_ont_speed_limit(
+    speed_config: SpeedLimitConfig,
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Configure speed limits for an ONT.
+    
+    Args:
+        speed_config: Speed limit configuration parameters
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.set_ont_speed_limit(
+                ont_id=ont_id,
+                download_limit=speed_config.download_limit,
+                upload_limit=speed_config.upload_limit,
+                **kwargs
+            )
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/olts/{olt_id}/onts/{ont_id}/port/{port_id}/toggle", response_model=Dict[str, bool])
+async def toggle_ont_port(
+    olt_id: str = Path(..., description="OLT identifier"),
+    ont_id: str = Path(..., description="ONT identifier"),
+    port_id: str = Path(..., description="Port identifier"),
+    enable: bool = Query(..., description="True to enable, False to disable"),
+    frame_id: Optional[str] = Query(None, description="Frame ID (for Huawei)"),
+    slot_id: Optional[str] = Query(None, description="Slot ID (for Huawei)"),
+    gpon_index: Optional[str] = Query(None, description="GPON index (for ZTE)"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    _: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Enable or disable an ONT port.
+    
+    Args:
+        olt_id: OLT identifier
+        ont_id: ONT identifier
+        port_id: Port identifier
+        enable: True to enable, False to disable
+        frame_id: Optional frame ID (for Huawei OLTs)
+        slot_id: Optional slot ID (for Huawei OLTs)
+        gpon_index: Optional GPON index (for ZTE OLTs)
+        pool: OLT connection pool from dependency
+        _: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, bool]: Success status
+    """
+    try:
+        with pool.get_adapter() as adapter:
+            kwargs = {}
+            if frame_id is not None:
+                kwargs['frame_id'] = frame_id
+            if slot_id is not None:
+                kwargs['slot_id'] = slot_id
+            if gpon_index is not None and hasattr(adapter, 'default_gpon_index'):
+                adapter.default_gpon_index = gpon_index
+                
+            success = adapter.enable_ont_port(ont_id, port_id, enable, **kwargs)
+            return {"success": success}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except ONTNotFoundError as e:
+        logger.error(f"ONT not found: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/olts/{olt_id}/command", response_model=Dict[str, str])
+async def execute_custom_command(
+    olt_id: str = Path(..., description="OLT identifier"),
+    command: str = Query(..., description="Command to execute"),
+    pool: OLTConnectionPool = Depends(get_olt_pool),
+    user: Dict[str, Any] = Depends(get_authenticated_user)
+):
+    """
+    Execute a custom command on the OLT.
+    
+    This endpoint requires admin privileges.
+    
+    Args:
+        olt_id: OLT identifier
+        command: Command to execute
+        pool: OLT connection pool from dependency
+        user: Authenticated user from dependency
+        
+    Returns:
+        Dict[str, str]: Command output
+    """
+    # Check if user has admin privileges
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    
+    try:
+        with pool.get_adapter() as adapter:
+            output = adapter.execute_custom_command(command)
+            return {"output": output}
+    except OLTConnectionError as e:
+        logger.error(f"Connection error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Could not connect to OLT")
+    except OLTManagementError as e:
+        logger.error(f"OLT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
