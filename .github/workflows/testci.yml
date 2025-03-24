@@ -27,9 +27,8 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            echo "⚠️ requirements.txt not found! Installing pytest manually."
-            pip install pytest
-          fi
+            echo "⚠️ requirements.txt not found! Installing required packages manually."
+            pip install pytest fastapi uvicorn httpx
 
       - name: Run Tests
         run: pytest isp_management-main/tests/core/test_metrics.py
