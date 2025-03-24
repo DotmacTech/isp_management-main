@@ -38,4 +38,4 @@ jobs:
         run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV  # Ensure correct module imports
 
       - name: Run Tests
-        run: pytest isp_management-main/tests/test_cache.py --maxfail=3 --disable-warnings
+        run: pytest isp_management-main/tests/run_reseller_tests.py --maxfail=1 --disable-warnings
