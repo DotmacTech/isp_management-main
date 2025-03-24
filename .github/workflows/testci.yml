@@ -31,4 +31,4 @@ jobs:
             pip install pytest fastapi uvicorn httpx
 
       - name: Run Tests
-        run: pytest isp_management-main/tests/core/test_metrics.py
+        run: pytest isp_management-main/tests/mock_dependencies.py
